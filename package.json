@@ -1,0 +1,36 @@
+{
+	"name": "arimbi-store",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"dev": "panda codegen && vite dev",
+		"build": "panda codegen && vite build",
+		"preview": "vite preview",
+		"prepare": "panda codegen",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+	},
+	"devDependencies": {
+		"@pandacss/dev": "^1.8.1",
+		"@sveltejs/adapter-auto": "^7.0.0",
+		"@sveltejs/kit": "^2.50.1",
+		"@sveltejs/vite-plugin-svelte": "^6.2.4",
+		"@types/bcryptjs": "^2.4.6",
+		"@types/canvas-confetti": "^1.9.0",
+		"@types/node": "^25.0.10",
+		"svelte": "^5.48.2",
+		"svelte-check": "^4.3.5",
+		"typescript": "^5.9.3",
+		"vite": "^7.3.1"
+	},
+	"dependencies": {
+		"@fontsource/inter": "^5.2.8",
+		"@fontsource/plus-jakarta-sans": "^5.2.8",
+		"bcryptjs": "^3.0.3",
+		"canvas-confetti": "^1.9.4",
+		"jspdf": "^4.0.0",
+		"jspdf-autotable": "^5.0.7",
+		"sharp": "^0.34.5"
+	}
+}

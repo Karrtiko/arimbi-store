@@ -1,0 +1,196 @@
+{
+  "categories": [
+    {
+      "id": 1,
+      "name": "Snack",
+      "slug": "snack",
+      "description": "Snack dan makanan ringan dari berbagai negara",
+      "created_at": "2026-01-28T00:00:00Z"
+    },
+    {
+      "id": 2,
+      "name": "Skincare",
+      "slug": "skincare",
+      "description": "Produk perawatan kulit dan kecantikan",
+      "created_at": "2026-01-28T00:00:00Z"
+    }
+  ],
+  "countries": [
+    {
+      "id": 1,
+      "name": "Korea",
+      "slug": "korea",
+      "flag_emoji": "🇰🇷",
+      "created_at": "2026-01-28T00:00:00Z",
+      "is_active": true
+    },
+    {
+      "id": 2,
+      "name": "Jepang",
+      "slug": "jepang",
+      "flag_emoji": "🇯🇵",
+      "created_at": "2026-01-28T00:00:00Z",
+      "is_active": true
+    },
+    {
+      "id": 3,
+      "name": "Thailand",
+      "slug": "thailand",
+      "flag_emoji": "🇹🇭",
+      "created_at": "2026-01-28T00:00:00Z",
+      "is_active": true
+    },
+    {
+      "id": 4,
+      "name": "China",
+      "slug": "china",
+      "flag_emoji": "🇨🇳",
+      "created_at": "2026-01-28T00:00:00Z",
+      "is_active": true
+    },
+    {
+      "id": 5,
+      "name": "Amerika",
+      "slug": "amerika",
+      "flag_emoji": "🇺🇸",
+      "created_at": "2026-01-28T00:00:00Z",
+      "is_active": true
+    },
+    {
+      "id": 6,
+      "code": "SI",
+      "name": "Singapura",
+      "slug": "singapura",
+      "flag_emoji": "🇸🇬",
+      "created_at": "2026-01-29T09:52:01.119Z",
+      "is_active": true
+    }
+  ],
+  "products": [
+    {
+      "name": "Indomie Goreng Aceh",
+      "slug": "indomie-goreng-aceh",
+      "price": 120000,
+      "stock": 100,
+      "category_id": 1,
+      "country_id": 3,
+      "description": "Indomie Goreng",
+      "image_url": "/uploads/products/2481898f-41c9-4fe9-914c-7f5fcce669e1.jpg",
+      "images": [
+        "/uploads/products/2481898f-41c9-4fe9-914c-7f5fcce669e1.jpg",
+        "/uploads/products/7c170d48-47dd-4ab0-a08e-600a8685fbbd.jpeg",
+        "/uploads/products/9cf38613-33c8-4f84-b1b6-f3ba548c1020.jpg",
+        "/uploads/products/0f698d05-a399-45d4-b8fa-627db8997ad4.png"
+      ],
+      "attributes": {
+        "Berat": "120 gram"
+      },
+      "is_featured": 1,
+      "is_active": 1,
+      "id": 3,
+      "created_at": "2026-01-29T03:12:25.851Z",
+      "updated_at": "2026-01-29T03:20:53.83Z"
+    },
+    {
+      "name": "Biore",
+      "slug": "biore",
+      "price": 1230000,
+      "stock": 100,
+      "category_id": 2,
+      "country_id": 5,
+      "description": "",
+      "image_url": "/uploads/products/dee890b2-8cc6-4c5c-874e-319924bcff08.png",
+      "images": [
+        "/uploads/products/dee890b2-8cc6-4c5c-874e-319924bcff08.png",
+        "/uploads/products/05dfd30d-74f5-4d5a-8029-d5a687112c42.png",
+        "/uploads/products/7d925295-0601-4252-acfb-4f3d09512c3f.png"
+      ],
+      "attributes": {},
+      "is_featured": 1,
+      "is_active": 1,
+      "id": 4,
+      "created_at": "2026-01-29T03:52:53.027Z",
+      "updated_at": "2026-01-29T03:52:53.027Z"
+    },
+    {
+      "name": "Biore Natural",
+      "slug": "biore-natural",
+      "price": 90000,
+      "stock": 100,
+      "category_id": 1,
+      "country_id": 1,
+      "description": "",
+      "image_url": "/uploads/products/115b040d-7b29-4a2c-b55e-cbbf8e35bacc.png",
+      "images": [
+        "/uploads/products/115b040d-7b29-4a2c-b55e-cbbf8e35bacc.png",
+        "/uploads/products/a4943b3f-4978-44d4-b330-fa827555c8fa.png"
+      ],
+      "attributes": {},
+      "is_featured": 1,
+      "is_active": 1,
+      "id": 5,
+      "created_at": "2026-01-29T03:53:52.081Z",
+      "updated_at": "2026-01-29T03:53:52.081Z"
+    },
+    {
+      "name": "Mie Rebus Ayam Goreng",
+      "slug": "mie-rebus-ayam-goreng",
+      "price": 120000,
+      "stock": 0,
+      "category_id": 1,
+      "country_id": 1,
+      "description": "",
+      "image_url": "/uploads/products/350cc066-83f2-48ba-8daa-0e1b4152b4f4.webp",
+      "images": [
+        "/uploads/products/350cc066-83f2-48ba-8daa-0e1b4152b4f4.webp",
+        "/uploads/products/83731532-d24b-41a3-9f56-6c8f3aef307f.jpg",
+        "/uploads/products/d20128ee-89c8-4e94-bd3f-72b96f4067ca.jpeg",
+        "/uploads/products/67f57488-100c-47d7-8283-915dc049d275.jpg"
+      ],
+      "attributes": {},
+      "is_featured": 1,
+      "is_active": 1,
+      "id": 6,
+      "created_at": "2026-01-29T03:55:15.534Z",
+      "updated_at": "2026-01-29T10:05:52.183Z"
+    },
+    {
+      "name": "Mie Goreng Ayam Rebus",
+      "slug": "mie-goreng-ayam-rebus",
+      "price": 140000,
+      "stock": 1,
+      "category_id": 1,
+      "country_id": 1,
+      "description": "",
+      "image_url": "/uploads/products/c0df90d3-a212-4cf6-8022-1ee345695ca8.jpg",
+      "images": [
+        "/uploads/products/d8d4f1fe-dd39-4808-858b-615d0cf6f943.webp",
+        "/uploads/products/c0df90d3-a212-4cf6-8022-1ee345695ca8.jpg"
+      ],
+      "attributes": {},
+      "is_featured": 1,
+      "is_active": 1,
+      "id": 7,
+      "created_at": "2026-01-29T06:58:29.919Z",
+      "updated_at": "2026-01-29T10:05:00.102Z"
+    }
+  ],
+  "transactions": [],
+  "cms": {
+    "hero": {
+      "title": "Jajanan Favorit Korea & Jepang",
+      "subtitle": "Temukan snack viral dan skincare terbaik langsung dari negara asalnya.",
+      "button_text": "Belanja Sekarang"
+    }
+  },
+  "settings": {
+    "watermark_opacity": 0.6,
+    "watermark_scale": 0.65,
+    "watermark_position": "center",
+    "watermark_path": "/uploads/watermarks/watermark-1769671651401-Gemini_Generated_Image_lvbnvzlvbnvzlvbn.png",
+    "low_stock_threshold": 10,
+    "products_per_page_catalog": 15,
+    "products_per_category_home": 5,
+    "best_sellers_limit": 10
+  }
+}

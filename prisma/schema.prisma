@@ -1,0 +1,52 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../generated/prisma"
+}
+
+// prisma/schema.prisma
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Category {
+  id       Int       @id @default(autoincrement())
+  name     String
+  slug     String    @unique
+  products Product[]
+}
+
+model Origin {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique // Jepang, Korea
+  slug     String    @unique
+  products Product[]
+}
+
+model Product {
+  id          Int      @id @default(autoincrement())
+  name        String
+  slug        String   @unique
+  description String
+  price       Float
+  image       String?
+  
+  // Atribut JSON untuk SvelteKit/SQLite (disimpan sebagai string)
+  attributes  String?  // Nanti kita parse JSON.parse() di Svelte
+  
+  categoryId  Int
+  category    Category @relation(fields: [categoryId], references: [id])
+  originId    Int
+  origin      Origin   @relation(fields: [originId], references: [id])
+  
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}

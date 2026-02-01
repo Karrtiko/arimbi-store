@@ -1,0 +1,22 @@
+services:
+  web:
+    build: .
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persist the JSON database
+      - ./src/lib/server/data/db.json:/app/src/lib/server/data/db.json
+      # Persist uploaded images
+      - ./static/uploads:/app/build/client/uploads
+      # Note: SvelteKit node adapter serves static files from build/client
+      # We mount to build/client/uploads so standard file serving works.
+      # AND we might also need to mount to static/uploads if the app writes there?
+      # Actually, the Node adapter copies 'static' to 'build/client'. 
+      # WRITES should probably go to a persistent volume, and reads should verify.
+      # For simplicity in this file-based setup:
+      # We map host ./static/uploads to the container location.
+      
+    environment:
+      - ORIGIN=http://localhost:3000
+      - NODE_ENV=production
