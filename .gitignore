@@ -25,3 +25,11 @@ vite.config.ts.timestamp-*
 ## Panda
 styled-system
 styled-system-studio
+
+# Database
+src/lib/server/data/*.json
+!src/lib/server/data/db_seed.json
+
+# User Uploads
+static/uploads/*
+!static/uploads/**/.gitkeep
