@@ -185,6 +185,8 @@
 		flex-direction: column;
 		gap: 0.5rem;
 		flex: 1;
+		overflow-y: auto; /* Enable scrolling */
+		min-height: 0; /* Fix for flex container scrolling */
 	}
 
 	.nav-item {
