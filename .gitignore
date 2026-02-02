@@ -33,3 +33,9 @@ src/lib/server/data/*.json
 # User Uploads
 static/uploads/*
 !static/uploads/**/.gitkeep
+uploads/
+
+# Docker Data (Production DB)
+data/
+*.sqlite
+*.db
