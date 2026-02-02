@@ -20,6 +20,7 @@ export const actions: Actions = {
         const { db, initDatabase } = await import('$lib/server/db');
         initDatabase();
 
+        console.log(`[LOGIN ATTEMPT] Username: ${username}`);
         const user = db.getUserByUsername(username);
 
         if (user) {
@@ -27,16 +28,23 @@ export const actions: Actions = {
             const bcrypt = (await import('bcryptjs')).default;
             const valid = await bcrypt.compare(password, user.password_hash);
 
+            console.log(`[LOGIN DEBUG] User found. ID: ${user.id}. Hash valid: ${valid}`);
+
             if (valid) {
+                console.log('[LOGIN SUCCESS] Setting cookie...');
                 cookies.set('admin_session', JSON.stringify({ id: user.id, role: user.role }), {
                     path: '/',
                     httpOnly: true,
-                    sameSite: 'strict',
-                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: 'lax', // Changed from strict to lax for easier debugging/redirects
+                    secure: false, // process.env.NODE_ENV === 'production', // DISABLE SECURE FOR LOCALHOST DEBUGGING
                     maxAge: 60 * 60 * 24 // 1 day
                 });
                 return redirect(303, '/admin');
+            } else {
+                console.log('[LOGIN FAILED] Invalid password');
             }
+        } else {
+            console.log('[LOGIN FAILED] User not found in DB');
         }
 
         return fail(400, {

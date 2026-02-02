@@ -84,8 +84,16 @@ export const load: PageServerLoad = async ({ url }) => {
     const homePage = db.getPage('home');
 
     // Override hero images if set in CMS
+    // Override hero images if set in CMS (Randomize selection)
     if (homePage?.content?.hero_images && Array.isArray(homePage.content.hero_images) && homePage.content.hero_images.length > 0) {
-        heroImages = homePage.content.hero_images;
+        let cmsImages = [...homePage.content.hero_images];
+        // Shuffle array
+        for (let i = cmsImages.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [cmsImages[i], cmsImages[j]] = [cmsImages[j], cmsImages[i]];
+        }
+        // Take first 4 (or less if not enough defined)
+        heroImages = cmsImages.slice(0, 4);
     }
 
     return {

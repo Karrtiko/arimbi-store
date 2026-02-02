@@ -6,11 +6,68 @@
 	let { page } = data;
 	let isSubmitting = $state(false);
 
+	// Image Management State
+	let existingImages = $state(page.content.hero_images || []);
+	let newPreviews: string[] = $state([]);
+	let fileInput: HTMLInputElement; // We might want to clear this if possible, but reading files is easier
+
+	// Handle File Selection
+	function handleFileSelect(e: Event) {
+		const input = e.target as HTMLInputElement;
+		if (input.files) {
+			const files = Array.from(input.files);
+
+			// Generate previews
+			files.forEach((file) => {
+				const reader = new FileReader();
+				reader.onload = (e) => {
+					if (e.target?.result) {
+						newPreviews = [...newPreviews, e.target.result as string];
+					}
+				};
+				reader.readAsDataURL(file);
+			});
+		}
+	}
+
+	function removeExistingImage(index: number) {
+		existingImages = existingImages.filter((_, i) => i !== index);
+	}
+
+	function removeNewImage(index: number) {
+		newPreviews = newPreviews.filter((_, i) => i !== index);
+		// Note: We can't easily remove specific files from input.files
+		// So this is visual removal mainly. But server processes 'hero_images_upload'.
+		// If user wants to remove a new upload properly, they might need to re-select.
+		// For now, this is a UI hint. Limitation: Input remains populated.
+		// Better approach: We can't control file input value.
+		// UX Tip: "To change selection, just select files again".
+		// But for simple "preview", let's keep it.
+		// Actually, if we just want to remove from preview list, that's fine.
+		// BUT the file is still submitted.
+		// A proper file manager would use AJAX, but here we use simple form post.
+		// Let's rely on re-selection for full reset, or assume user selects only what they want.
+		// Improving: We could clear the input if they clear all, but selective clear is hard.
+		// Let's Keep "removeNewImage" just for removing from visual stack if we were pushing to FormData manually,
+		// but since we use native form submit, we can't block that file easily.
+		// DECISION: Remove "Delete" button from New Previews because it's misleading (file is still sent).
+		// Instead just show them.
+	}
+
+	function resetNewImages() {
+		newPreviews = [];
+		// find input and clear it
+		const input = document.getElementById('hero_images_upload') as HTMLInputElement;
+		if (input) input.value = '';
+	}
+
 	function handleSubmit() {
 		isSubmitting = true;
 		return async ({ update }: { update: any }) => {
 			await update();
 			isSubmitting = false;
+			// Update local state from result if needed, but page reload usually handles it
+			window.location.reload();
 		};
 	}
 </script>
@@ -41,29 +98,59 @@
 						multiple
 						accept="image/*"
 						class="file-input"
+						onchange={handleFileSelect}
 					/>
-					<small>Gambar yang diupload akan menggantikan default product slider.</small>
+					<small
+						>Gambar yang diupload akan DITAMBAHKAN ke slider (untuk menghapus, klik tombol hapus di
+						bawah).</small
+					>
 				</div>
 
+				<!-- New Uploads Preview -->
+				{#if newPreviews.length > 0}
+					<div class="form-group" transition:fade>
+						<div style="display:flex; justify-content:space-between; align-items:center;">
+							<label>Akan Diupload ({newPreviews.length}):</label>
+							<button type="button" class="btn-text-danger" onclick={resetNewImages}
+								>Batal Upload Semua</button
+							>
+						</div>
+						<div class="cms-image-grid new-uploads">
+							{#each newPreviews as preview}
+								<div class="cms-img-thumb">
+									<img src={preview} alt="New Upload" />
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				<!-- Existing Images -->
 				<div class="form-group">
-					<label>Gambar Terpilih:</label>
-					{#if page.content.hero_images && page.content.hero_images.length > 0}
+					<label>Gambar Slider Saat Ini:</label>
+					{#if existingImages.length > 0}
 						<div class="cms-image-grid">
-							{#each page.content.hero_images as img}
+							{#each existingImages as img, i}
 								<div class="cms-img-thumb">
 									<img src={img} alt="Hero Banner" />
+									<button
+										type="button"
+										class="btn-delete-img"
+										onclick={() => removeExistingImage(i)}>🗑️</button
+									>
 								</div>
 							{/each}
 						</div>
 						<input
 							type="hidden"
 							name="hero_images_existing"
-							value={JSON.stringify(page.content.hero_images)}
+							value={JSON.stringify(existingImages)}
 						/>
 					{:else}
 						<p class="text-sm text-gray-500">
 							Belum ada gambar custom (Menggunakan gambar produk default)
 						</p>
+						<input type="hidden" name="hero_images_existing" value="[]" />
 					{/if}
 				</div>
 
@@ -302,6 +389,26 @@
 </div>
 
 <style>
+	:global(:root) {
+		--primary-50: #eef2ff;
+		--primary-100: #e0e7ff;
+		--primary-400: #818cf8;
+		--primary-500: #6366f1;
+		--primary-600: #4f46e5;
+		--primary-700: #4338ca;
+		--gray-50: #f9fafb;
+		--gray-100: #f3f4f6;
+		--gray-200: #e5e7eb;
+		--gray-300: #d1d5db;
+		--gray-400: #9ca3af;
+		--gray-500: #6b7280;
+		--gray-600: #4b5563;
+		--gray-700: #374151;
+		--gray-800: #1f2937;
+		--gray-900: #111827;
+		--green-600: #059669;
+	}
+
 	.editor-container {
 		max-width: 800px;
 		margin: 0 auto;
@@ -511,5 +618,40 @@
 		border: 1px dashed var(--gray-400);
 		width: 100%;
 		border-radius: 0.5rem;
+	}
+	.cms-img-thumb {
+		position: relative;
+	}
+	.btn-delete-img {
+		position: absolute;
+		top: 4px;
+		right: 4px;
+		background: white;
+		border: 1px solid #fee2e2;
+		color: #ef4444;
+		border-radius: 50%;
+		width: 24px;
+		height: 24px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		font-size: 0.75rem;
+		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+	}
+	.btn-delete-img:hover {
+		background: #fee2e2;
+	}
+	.new-uploads .cms-img-thumb {
+		border-color: var(--primary-400);
+		box-shadow: 0 0 0 2px var(--primary-100);
+	}
+	.btn-text-danger {
+		background: none;
+		border: none;
+		color: #dc2626;
+		font-size: 0.8rem;
+		cursor: pointer;
+		text-decoration: underline;
 	}
 </style>

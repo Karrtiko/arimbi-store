@@ -534,13 +534,22 @@ export const db = {
 
         const transactions = sqlite.prepare(query).all(...params) as Transaction[];
 
+        const totalCount = sqlite.prepare('SELECT COUNT(*) as count FROM transactions').get() as { count: number };
+
         // Get items for each transaction
         return {
             transactions: transactions.map(t => ({
                 ...t,
                 items: db.getTransactionItems(t.id)
             })),
-            total: sqlite.prepare('SELECT COUNT(*) as count FROM transactions').get() as { count: number }
+            pagination: {
+                currentPage: page,
+                totalPages: Math.ceil(totalCount.count / limit),
+                totalItems: totalCount.count,
+                itemsPerPage: limit,
+                hasNextPage: page < Math.ceil(totalCount.count / limit),
+                hasPrevPage: page > 1
+            }
         };
     },
 
@@ -852,38 +861,45 @@ export const db = {
 
     // ==================== USERS ====================
 
+    // ==================== USERS ====================
+
     getUsers: () => {
-        // User management can be added later if needed
-        return [];
+        const db = getDb();
+        return db.prepare('SELECT id, username, role, created_at, last_login FROM users').all() as User[];
     },
 
     getUserById: (id: number) => {
-        // Hardcoded admin for now
-        if (id === 1) {
-            return {
-                id: 1,
-                username: 'admin',
-                password_hash: '$2a$10$rGHQzN8zN8zN8zN8zN8zN.', // bcrypt hash of 'admin123'
-                role: 'admin' as const,
-                created_at: new Date().toISOString()
-            };
-        }
-        return undefined;
+        const db = getDb();
+        return db.prepare('SELECT * FROM users WHERE id = ?').get(id) as User | undefined;
     },
 
     getUserByUsername: (username: string) => {
-        // Hardcoded admin for now
-        if (username === 'admin') {
-            return {
-                id: 1,
-                username: 'admin',
-                password_hash: '$2a$10$rGHQzN8zN8zN8zN8zN8zN.', // bcrypt hash of 'admin123'
-                role: 'admin' as const,
-                created_at: new Date().toISOString()
-            };
+        const db = getDb();
+        // Fallback for hardcoded admin if NOT in DB (migration handling)
+        const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as User | undefined;
+
+        if (!user && username === 'admin') {
+            // Check if ANY user exists. If not, maybe seed didn't run?
+            // But we should rely on SeedDatabase. 
+            // Return undefined to force auth failure if not properly seeded.
+            return undefined;
         }
-        return undefined;
-    }
+        return user;
+    },
+
+    createUser: (username: string, passwordHash: string, role: 'admin' | 'staff' = 'staff') => {
+        const db = getDb();
+        try {
+            const info = db.prepare(`
+                INSERT INTO users (username, password_hash, role)
+                VALUES (?, ?, ?)
+            `).run(username, passwordHash, role);
+            return db.getProductById(info.lastInsertRowid.toString()); // Reusing generic logic or just returning id
+        } catch (error) {
+            console.error('Failed to create user:', error);
+            throw error;
+        }
+    },
 };
 
 // ==================== INITIALIZATION ====================
@@ -907,8 +923,24 @@ export function initDatabase() {
  * For SQLite, we rely on migration script instead
  */
 export function seedDatabase() {
-    // No-op for SQLite - data should be migrated using npm run migrate
-    // This function exists for compatibility with hooks.server.ts
-    console.log('ℹ️  SQLite database ready (use "npm run migrate" to import data)');
+    const database = getDb();
+
+    // Check if admin user exists
+    const admin = database.prepare("SELECT * FROM users WHERE username = 'admin'").get();
+
+    if (!admin) {
+        console.log('🌱 Seeding default admin user...');
+        try {
+            // Default password: admin123
+            const hash = '$2b$10$jZDpXcnGykP9Yz/IlkHL9eT9Tv9umeEK/X8rgrCw5DaKl3vkNmzrm';
+            database.prepare(`
+                INSERT INTO users (username, password_hash, role)
+                VALUES (?, ?, ?)
+            `).run('admin', hash, 'admin');
+            console.log('✅ Default admin user created (admin / admin123)');
+        } catch (error) {
+            console.error('❌ Failed to seed admin user:', error);
+        }
+    }
 }
 
