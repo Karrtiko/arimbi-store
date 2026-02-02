@@ -609,37 +609,7 @@
 		color: #475569;
 		font-size: 0.9rem;
 	}
-	.more-items {
-		font-size: 0.8rem;
-		color: #94a3b8;
-		font-style: italic;
-	}
 
-	.input-resi {
-		width: 140px;
-		padding: 0.5rem;
-		border: 1px solid #e2e8f0;
-		border-radius: 0.5rem;
-		font-size: 0.9rem;
-		outline: none;
-		transition: border 0.2s;
-	}
-	.input-resi:focus {
-		border-color: var(--primary);
-		box-shadow: 0 0 0 2px var(--primary-light);
-	}
-
-	.select-status {
-		appearance: none;
-		border: none;
-		padding: 0.4rem 1rem;
-		border-radius: 2rem;
-		font-size: 0.75rem;
-		font-weight: 700;
-		cursor: pointer;
-		outline: none;
-		text-align: center;
-	}
 	/* Status Colors */
 	.pending {
 		background: var(--status-pending-bg);

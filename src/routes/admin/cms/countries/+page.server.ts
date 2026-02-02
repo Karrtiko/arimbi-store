@@ -1,7 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { db } from '$lib/server/db';
-import { db } from '$lib/server/db';
 
 export const load: PageServerLoad = async () => {
     return {
