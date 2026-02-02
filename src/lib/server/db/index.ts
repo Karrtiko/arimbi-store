@@ -914,11 +914,41 @@ export const db = {
                 INSERT INTO users (username, password_hash, role)
                 VALUES (?, ?, ?)
             `).run(username, passwordHash, role);
-            return db.getProductById(info.lastInsertRowid.toString()); // Reusing generic logic or just returning id
+            return db.getProductById(info.lastInsertRowid.toString());
         } catch (error) {
             console.error('Failed to create user:', error);
             throw error;
         }
+    },
+
+    updateUser: (id: number, updates: { username?: string; role?: 'admin' | 'staff'; password_hash?: string }) => {
+        const db = getDb();
+        const fields: string[] = [];
+        const values: any[] = [];
+
+        if (updates.username) {
+            fields.push('username = ?');
+            values.push(updates.username);
+        }
+        if (updates.role) {
+            fields.push('role = ?');
+            values.push(updates.role);
+        }
+        if (updates.password_hash) {
+            fields.push('password_hash = ?');
+            values.push(updates.password_hash);
+        }
+
+        if (fields.length === 0) return;
+
+        values.push(id);
+        db.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    },
+
+    deleteUser: (id: number) => {
+        const db = getDb();
+        const result = db.prepare('DELETE FROM users WHERE id = ?').run(id);
+        return result.changes > 0;
     },
 };
 
