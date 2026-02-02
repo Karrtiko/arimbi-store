@@ -93,6 +93,7 @@
 						type="number"
 						id="products_per_page_catalog"
 						name="products_per_page_catalog"
+						class="input-short"
 						value={data.settings.products_per_page_catalog}
 						min="5"
 						max="100"
@@ -106,6 +107,7 @@
 						type="number"
 						id="products_per_category_home"
 						name="products_per_category_home"
+						class="input-short"
 						value={data.settings.products_per_category_home}
 						min="3"
 						max="20"
@@ -120,6 +122,7 @@
 					type="number"
 					id="best_sellers_limit"
 					name="best_sellers_limit"
+					class="input-short"
 					value={data.settings.best_sellers_limit}
 					min="5"
 					max="50"
@@ -276,5 +279,9 @@
 	.btn-primary:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
+	}
+
+	.input-short {
+		max-width: 150px;
 	}
 </style>

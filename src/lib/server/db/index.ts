@@ -847,12 +847,32 @@ export const db = {
     },
 
     getCountries: () => {
-        return [
-            { id: 1, name: 'Japan', slug: 'japan', flag_emoji: '🇯🇵', is_active: 1, created_at: new Date().toISOString() },
-            { id: 2, name: 'Korea', slug: 'korea', flag_emoji: '🇰🇷', is_active: 1, created_at: new Date().toISOString() },
-            { id: 3, name: 'Thailand', slug: 'thailand', flag_emoji: '🇹🇭', is_active: 1, created_at: new Date().toISOString() },
-            { id: 4, name: 'China', slug: 'china', flag_emoji: '🇨🇳', is_active: 1, created_at: new Date().toISOString() }
-        ];
+        const sqlite = getDb();
+        return sqlite.prepare('SELECT * FROM countries ORDER BY name ASC').all();
+    },
+
+    getCountryById: (id: number) => {
+        const sqlite = getDb();
+        return sqlite.prepare('SELECT * FROM countries WHERE id = ?').get(id);
+    },
+
+    addCountry: (country: any) => {
+        const sqlite = getDb();
+        const stmt = sqlite.prepare(`
+            INSERT INTO countries (name, slug, code, flag_emoji, is_active)
+            VALUES (@name, @slug, @code, @flag_emoji, @is_active)
+        `);
+        return stmt.run(country);
+    },
+
+    updateCountry: (country: any) => {
+        const sqlite = getDb();
+        const stmt = sqlite.prepare(`
+            UPDATE countries 
+            SET name = @name, slug = @slug, code = @code, flag_emoji = @flag_emoji, is_active = @is_active
+            WHERE id = @id
+        `);
+        return stmt.run(country);
     },
 
     getActiveCountries: () => {
@@ -910,8 +930,26 @@ export const db = {
  */
 export function initDatabase() {
     try {
-        getDb(); // This will trigger database creation and schema initialization
-        console.log('✅ SQLite database initialized');
+        const db = getDb(); // This will trigger database creation and schema initialization
+        // Seed Countries if empty
+        const countryCount = db.prepare('SELECT COUNT(*) as count FROM countries').get() as { count: number };
+        if (countryCount.count === 0) {
+            console.log('Seeding countries...');
+            const insertCountry = db.prepare(`
+            INSERT INTO countries (name, slug, code, flag_emoji, is_active)
+            VALUES (?, ?, ?, ?, 1)
+        `);
+
+            insertCountry.run('Japan', 'japan', 'JP', '🇯🇵');
+            insertCountry.run('Korea', 'korea', 'KR', '🇰🇷');
+            insertCountry.run('Thailand', 'thailand', 'TH', '🇹🇭');
+            insertCountry.run('China', 'china', 'CN', '🇨🇳');
+            insertCountry.run('Indonesia', 'indonesia', 'ID', '🇮🇩');
+            insertCountry.run('Malaysia', 'malaysia', 'MY', '🇲🇾');
+            insertCountry.run('Singapore', 'singapore', 'SG', '🇸🇬');
+        }
+
+        console.log('Database initialized successfully');
     } catch (error) {
         console.error('❌ Failed to initialize database:', error);
         throw error;

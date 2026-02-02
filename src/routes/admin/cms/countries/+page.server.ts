@@ -1,7 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { db } from '$lib/server/db';
-import { jsonDb } from '$lib/server/data';
+import { db } from '$lib/server/db';
 
 export const load: PageServerLoad = async () => {
     return {
@@ -20,33 +20,18 @@ export const actions: Actions = {
                 return fail(400, { error: 'Country name is required' });
             }
 
-            // Get all countries
-            const countries = db.getCountries();
-
-            // Generate new ID
-            const newId = Math.max(...countries.map((c: any) => c.id || 0), 0) + 1;
-
-            // Create slug from name
+            // Create slug and code
             const slug = name.toLowerCase().replace(/\s+/g, '-');
-
-            // Auto-generate code from first 2 letters of name
             const code = name.substring(0, 2).toUpperCase();
 
-            // Add new country
-            const newCountry = {
-                id: newId,
-                code: code,
-                name: name,
-                slug: slug,
+            // Add new country via DB
+            db.addCountry({
+                name,
+                slug,
+                code,
                 flag_emoji: flagEmoji || '🏳️',
-                created_at: new Date().toISOString(),
-                is_active: true
-            };
-
-            countries.push(newCountry);
-
-            // Save to file
-            jsonDb.write();
+                is_active: 1
+            });
 
             return { success: true, message: 'Country added successfully!' };
         } catch (error) {
@@ -66,22 +51,18 @@ export const actions: Actions = {
                 return fail(400, { error: 'Country name is required' });
             }
 
-            // Get all countries
-            const countries = db.getCountries();
-            const country = countries.find((c: any) => c.id === countryId);
+            const country = db.getCountryById(countryId);
+            if (!country) return fail(404, { error: 'Country not found' });
 
-            if (!country) {
-                return fail(404, { error: 'Country not found' });
-            }
-
-            // Update country data
-            country.name = name;
-            country.slug = name.toLowerCase().replace(/\s+/g, '-');
-            country.flag_emoji = flagEmoji || country.flag_emoji || '🏳️';
-            country.code = name.substring(0, 2).toUpperCase();
-
-            // Save to file
-            jsonDb.write();
+            // Update fields
+            db.updateCountry({
+                id: countryId,
+                name,
+                slug: name.toLowerCase().replace(/\s+/g, '-'),
+                code: name.substring(0, 2).toUpperCase(),
+                flag_emoji: flagEmoji || country.flag_emoji || '🏳️',
+                is_active: country.is_active // keep existing status
+            });
 
             return { success: true, message: 'Country updated successfully!' };
         } catch (error) {
@@ -94,21 +75,17 @@ export const actions: Actions = {
         try {
             const formData = await request.formData();
             const countryId = parseInt(formData.get('id') as string);
-            const isActive = formData.get('is_active') === 'true';
+            // Convert string "true" to boolean, then to 1/0 for SQLite
+            const isActive = formData.get('is_active') === 'true' ? 1 : 0;
 
-            // Get all countries
-            const countries = db.getCountries();
-            const country = countries.find((c: any) => c.id === countryId);
+            const country = db.getCountryById(countryId);
+            if (!country) return fail(404, { error: 'Country not found' });
 
-            if (!country) {
-                return fail(404, { error: 'Country not found' });
-            }
-
-            // Update the country
-            country.is_active = isActive;
-
-            // Save to file
-            jsonDb.write();
+            // Update only is_active
+            db.updateCountry({
+                ...country,
+                is_active: isActive
+            });
 
             return { success: true };
         } catch (error) {

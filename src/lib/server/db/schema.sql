@@ -91,3 +91,14 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     last_login TEXT
 );
+
+-- Countries table
+CREATE TABLE IF NOT EXISTS countries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    code TEXT,
+    flag_emoji TEXT DEFAULT '🏳️',
+    is_active INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);

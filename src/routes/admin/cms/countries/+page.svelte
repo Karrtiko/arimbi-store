@@ -96,8 +96,9 @@
 						<td class="flag-cell">{country.flag_emoji}</td>
 						<td class="name-cell">{country.name}</td>
 						<td class="code-cell">{country.code || '-'}</td>
+						<td class="code-cell">{country.code || '-'}</td>
 						<td>
-							{#if country.is_active !== false}
+							{#if country.is_active}
 								<span class="badge active">Active</span>
 							{:else}
 								<span class="badge inactive">Inactive</span>
@@ -111,10 +112,10 @@
 									<input
 										type="hidden"
 										name="is_active"
-										value={country.is_active === false ? 'true' : 'false'}
+										value={country.is_active ? 'false' : 'true'}
 									/>
 									<button type="submit" class="btn-toggle">
-										{country.is_active === false ? 'Enable' : 'Disable'}
+										{country.is_active ? 'Disable' : 'Enable'}
 									</button>
 								</form>
 							</div>
