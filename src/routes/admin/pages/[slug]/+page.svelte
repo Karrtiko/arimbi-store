@@ -27,11 +27,47 @@
 		<h1>Edit {page.title}</h1>
 	</header>
 
-	<form method="POST" use:enhance={handleSubmit} class="editor-form">
+	<form method="POST" enctype="multipart/form-data" use:enhance={handleSubmit} class="editor-form">
 		<!-- Dynamic Fields based on Slug -->
 		{#if page.slug === 'home'}
 			<div class="section">
-				<h3>Hero Section</h3>
+				<h3>Banner / Hero Images</h3>
+				<div class="form-group">
+					<label for="hero_images_upload">Upload Gambar Slider (Bisa pilih banyak)</label>
+					<input
+						type="file"
+						id="hero_images_upload"
+						name="hero_images_upload"
+						multiple
+						accept="image/*"
+						class="file-input"
+					/>
+					<small>Gambar yang diupload akan menggantikan default product slider.</small>
+				</div>
+
+				<div class="form-group">
+					<label>Gambar Terpilih:</label>
+					{#if page.content.hero_images && page.content.hero_images.length > 0}
+						<div class="cms-image-grid">
+							{#each page.content.hero_images as img}
+								<div class="cms-img-thumb">
+									<img src={img} alt="Hero Banner" />
+								</div>
+							{/each}
+						</div>
+						<input
+							type="hidden"
+							name="hero_images_existing"
+							value={JSON.stringify(page.content.hero_images)}
+						/>
+					{:else}
+						<p class="text-sm text-gray-500">
+							Belum ada gambar custom (Menggunakan gambar produk default)
+						</p>
+					{/if}
+				</div>
+
+				<h3>Hero Section Text</h3>
 				<div class="form-group">
 					<label for="hero_title">Judul Utama (HTML allowed)</label>
 					<textarea id="hero_title" name="hero_title" rows="2"
@@ -132,14 +168,23 @@
 					>
 				</div>
 				<div class="form-group">
-					<label for="hero_image">URL Gambar Hero</label>
-					<input
-						type="text"
-						id="hero_image"
-						name="hero_image"
-						value={page.content.hero_image || ''}
-						placeholder="https://..."
-					/>
+					<label for="hero_image_file">Gambar Hero Profile</label>
+					<div class="image-upload-wrapper">
+						{#if page.content.hero_image}
+							<div class="current-image">
+								<img src={page.content.hero_image} alt="Current Hero" />
+								<input type="hidden" name="hero_image" value={page.content.hero_image} />
+							</div>
+						{/if}
+						<input
+							type="file"
+							id="hero_image_file"
+							name="hero_image_file"
+							accept="image/*"
+							class="file-input"
+						/>
+					</div>
+					<small class="helper-text">Upload gambar baru untuk mengganti.</small>
 				</div>
 			</div>
 
@@ -436,5 +481,35 @@
 		font-weight: 600;
 		box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 		z-index: 100;
+	}
+	.cms-image-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+		gap: 1rem;
+		margin-top: 1rem;
+	}
+	.cms-img-thumb,
+	.current-image {
+		width: 100%;
+		border-radius: 0.5rem;
+		overflow: hidden;
+		border: 1px solid var(--gray-300);
+	}
+	.cms-img-thumb img,
+	.current-image img {
+		width: 100%;
+		height: 100px;
+		object-fit: cover;
+		display: block;
+	}
+	.current-image img {
+		height: 200px; /* Larger for single image */
+	}
+	.file-input {
+		padding: 0.5rem;
+		background: var(--gray-50);
+		border: 1px dashed var(--gray-400);
+		width: 100%;
+		border-radius: 0.5rem;
 	}
 </style>

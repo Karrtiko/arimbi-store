@@ -8,6 +8,7 @@ COPY package*.json ./
 COPY panda.config.ts ./
 COPY svelte.config.js ./
 COPY vite.config.ts ./
+RUN apk add --no-cache python3 make g++
 RUN npm ci
 
 # Copy source

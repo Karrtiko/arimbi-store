@@ -1,10 +1,7 @@
 import Database from 'better-sqlite3';
-import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import { existsSync, mkdirSync } from 'fs';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import schema from './schema.sql?raw';
 
 // Get database path from environment or use default
 const DB_PATH = process.env.DB_PATH || join(process.cwd(), 'data', 'arimbi.db');
@@ -29,9 +26,6 @@ export function getDatabase(): Database.Database {
 }
 
 function initializeSchema() {
-    const schemaPath = join(__dirname, 'schema.sql');
-    const schema = readFileSync(schemaPath, 'utf-8');
-
     // Execute schema (split by semicolon and execute each statement)
     const statements = schema.split(';').filter(s => s.trim());
 

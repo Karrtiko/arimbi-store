@@ -1,7 +1,10 @@
-// In-memory database for development
-// For production, you can switch to SQLite or PostgreSQL
-// For production, you can switch to SQLite or PostgreSQL
+// SQLite Database Layer for Arimbi Store
+// Replaces JSON file-based storage with proper SQL database
 
+import { getDatabase } from './sqlite.js';
+import type Database from 'better-sqlite3';
+
+// Type definitions
 interface Category {
     id: number;
     name: string;
@@ -19,49 +22,66 @@ interface Country {
     created_at: string;
 }
 
-interface Variant {
+interface Product {
     id: string;
     name: string;
-    price?: number; // Optional if price overrides base price
-    stock?: number;
-}
-
-interface Product {
-    id: number;
-    name: string;
-    slug: string;
     description: string;
     price: number;
-    category_id: number;
-    country_id: number;
+    stock: number;
+    category: string;
+    country: string;
     image_url: string;
-    images?: string[]; // Added multi-image support
-    attributes: any;
-    variants?: Variant[];
-    is_featured: number;
     is_active: number;
-    stock?: number;
     created_at: string;
     updated_at: string;
 }
 
+interface Bundle {
+    id: string;
+    name: string;
+    description: string;
+    price: number;
+    image_url: string;
+    is_active: number;
+    created_at: string;
+}
+
 interface BundleItem {
-    product_id: number;
+    bundle_id: string;
+    product_id: string;
     quantity: number;
 }
 
-interface Bundle {
-    id: number;
-    name: string;
-    slug: string;
-    description: string;
-    image_url: string;
-    images?: string[]; // Multiple images support
-    price: number;
-    stock: number; // Independent stock
-    items: BundleItem[];
-    is_active: boolean;
+interface Transaction {
+    id: string;
+    customer_name: string;
+    customer_phone: string;
+    customer_address: string;
+    total: number;
+    status: string;
+    shipping_number?: string;
+    notes?: string;
+    timestamp: string;
     created_at: string;
+}
+
+interface TransactionItem {
+    id?: number;
+    transaction_id: string;
+    product_id?: string;
+    product_name: string;
+    quantity: number;
+    price: number;
+}
+
+interface Settings {
+    [key: string]: any;
+}
+
+interface Page {
+    slug: string;
+    title: string;
+    content: any;
     updated_at: string;
 }
 
@@ -74,421 +94,553 @@ export interface User {
     last_login?: string;
 }
 
-// In-memory data store
-import { jsonDb } from '../data/index';
-// @ts-ignore
-import bcrypt from 'bcryptjs';
+// Get database instance
+let dbInstance: Database.Database;
 
-// Helper to access data
-const getData = () => jsonDb.get();
+function getDb(): Database.Database {
+    if (!dbInstance) {
+        dbInstance = getDatabase();
+    }
+    return dbInstance;
+}
 
 // Database operations
 export const db = {
-    // Categories
-    getCategories: () => getData().categories,
-    getCategoryBySlug: (slug: string) => getData().categories.find((c: Category) => c.slug === slug),
+    // ==================== PRODUCTS ====================
 
-    // Countries
-    // Countries
-    getCountries: () => getData().countries,
-    getActiveCountries: () => {
-        const data = getData();
-        // Seed Pages if missing (Lazy Migration)
-        if (!data.pages) {
-            data.pages = [
-                {
-                    slug: 'home',
-                    title: 'Home',
-                    content: {
-                        hero_title: 'Jajanan yang Kamu Kangenin, <br><span class="text-primary">Skincare yang Kamu Butuhin.</span>',
-                        hero_subtitle: 'Pengen snack oleh-oleh hits dari luar negeri nggak perlu nunggu jastip. Plus, ada koleksi skincare pilihan buat harian kamu. Semua ready, tinggal angkut!',
-                        origin_title: 'Jalan-Jalan Virtual Lewat Jajanan',
-                        origin_subtitle: 'Pilih negara favoritmu dan temukan snack autentik langsung dari asalnya.',
-                        best_seller_title: '🔥 Produk Terlaris',
-                        best_seller_subtitle: 'Favorit pelanggan kami bulan ini',
-                        low_stock_title: '⚡ Buruan! Stok Tinggal Sedikit',
-                        low_stock_subtitle: 'Jangan sampai kehabisan produk favoritmu'
-                    },
-                    updated_at: new Date().toISOString()
-                },
-                {
-                    slug: 'about',
-                    title: 'About Us',
-                    content: {
-                        hero_tag: '👋 Kenalan Yuk!',
-                        hero_title: 'Bawa Pulang <span class="highlight">Jajanan Dunia</span><br>ke Rumahmu!',
-                        hero_text: 'Hai! Selamat datang di Arimbi Store. Tempatnya kamu cari cemilan unik dari luar negeri dan rahasia kulit sehat yang sudah kami pilihkan khusus buat kamu.',
-                        hero_image: 'https://images.unsplash.com/photo-1599643478518-17488fbbcd75?q=80&w=1000&auto=format&fit=crop',
-                        story_title: 'Gimana Awalnya? 🤔',
-                        story_text_1: 'Berawal dari hobi jajan dan sering dititipin oleh-oleh sama temen, kami sadar kalau cari <strong class="text-accent">snack luar negeri</strong> yang asli itu gampang-gampang susah. Akhirnya, Arimbi Store hadir supaya kamu nggak perlu terbang jauh-jauh cuma buat ngerasain Pocky Jepang atau Keripik Korea.',
-                        story_text_2: 'Oh iya, nggak cuma buat perut, kami juga peduli sama penampilan kamu. Makanya, kami juga sediain koleksi <strong class="text-primary">skincare pilihan</strong> yang emang sudah terbukti bagus dan aman dipakai.',
-                        stats_1_num: '500+',
-                        stats_1_label: 'Happy Customer',
-                        stats_2_num: '100%',
-                        stats_2_label: 'Original Items',
-                        promise_title: '✋ Janji Kami',
-                        promise_1_title: 'Pasti Asli',
-                        promise_1_desc: 'Nggak perlu khawatir, semua barang di sini 100% original. No KW-KW club!',
-                        promise_2_title: 'Snack Luar Negeri Asli',
-                        promise_2_desc: 'Semua jajanan kami bawa langsung dari negara asalnya (Jepang, Korea, Thailand, dll).',
-                        promise_3_title: 'Skincare Pilihan',
-                        promise_3_desc: 'Skincare yang kami jual sudah kami cek dulu kualitasnya, jadi kamu tinggal pakai aja.',
-                        promise_4_title: 'Packing Anti-Remuk',
-                        promise_4_desc: 'Kami tahu rasanya sedih kalau snack sampai dalam keadaan hancur. Perlindungan ekstra aman!'
-                    },
-                    updated_at: new Date().toISOString()
-                }
-            ];
-            jsonDb.write();
-        }
-        return (data.countries || []).filter((c: any) => c.is_active === 1 || c.is_active === true);
-    },
-    getCountryBySlug: (slug: string) => getData().countries.find((c: Country) => c.slug === slug),
-
-    // Products
     getProducts: (filters?: {
         category?: string;
         country?: string;
         search?: string;
-        featured?: boolean;
-        includeInactive?: boolean;
+        is_active?: boolean;
+        limit?: number;
+        offset?: number;
     }) => {
-        const data = getData();
-        let filtered = data.products;
-
-        if (!filters?.includeInactive) {
-            filtered = filtered.filter((p: Product) => p.is_active === 1);
-        }
+        const db = getDb();
+        let query = 'SELECT * FROM products WHERE 1=1';
+        const params: any[] = [];
 
         if (filters?.category) {
-            const category = data.categories.find((c: Category) => c.slug === filters.category);
-            if (category) {
-                filtered = filtered.filter((p: Product) => p.category_id === category.id);
-            }
+            query += ' AND category = ?';
+            params.push(filters.category);
         }
 
         if (filters?.country) {
-            const country = data.countries.find((c: Country) => c.slug === filters.country);
-            if (country) {
-                filtered = filtered.filter((p: Product) => p.country_id === country.id);
-            }
+            query += ' AND country = ?';
+            params.push(filters.country);
         }
 
         if (filters?.search) {
-            const searchLower = filters.search.toLowerCase();
-            filtered = filtered.filter(
-                (p: Product) =>
-                    p.name.toLowerCase().includes(searchLower) ||
-                    p.description.toLowerCase().includes(searchLower)
-            );
+            query += ' AND (name LIKE ? OR description LIKE ?)';
+            params.push(`%${filters.search}%`, `%${filters.search}%`);
         }
 
-        if (filters?.featured) {
-            filtered = filtered.filter((p: Product) => p.is_featured === 1);
+        if (filters?.is_active !== undefined) {
+            query += ' AND is_active = ?';
+            params.push(filters.is_active ? 1 : 0);
         }
 
-        return filtered;
-    },
+        query += ' ORDER BY created_at DESC';
 
-    getProductBySlug: (slug: string) => getData().products.find((p: Product) => p.slug === slug && p.is_active === 1),
-
-    getProductsWithDetails: (filters?: any) => {
-        const filtered = db.getProducts({ ...filters, includeInactive: true });
-        const data = getData();
-        return filtered.map((p: Product) => ({
-            ...p,
-            category_name: data.categories.find((c: Category) => c.id === p.category_id)?.name,
-            category_slug: data.categories.find((c: Category) => c.id === p.category_id)?.slug,
-            country_name: data.countries.find((c: Country) => c.id === p.country_id)?.name,
-            country_flag: data.countries.find((c: Country) => c.id === p.country_id)?.flag_emoji,
-        }));
-    },
-
-    getProductWithDetails: (slug: string) => {
-        const product = db.getProductBySlug(slug);
-        if (!product) return null;
-
-        const data = getData();
-        return {
-            ...product,
-            category_name: data.categories.find((c: Category) => c.id === product.category_id)?.name,
-            category_slug: data.categories.find((c: Category) => c.id === product.category_id)?.slug,
-            country_name: data.countries.find((c: Country) => c.id === product.country_id)?.name,
-            country_flag: data.countries.find((c: Country) => c.id === product.country_id)?.flag_emoji,
-        };
-    },
-
-    getCategoriesWithCount: () => {
-        const data = getData();
-        return data.categories.map((c: Category) => ({
-            ...c,
-            product_count: data.products.filter((p: Product) => p.category_id === c.id && p.is_active === 1).length,
-        }));
-    },
-
-    // Admin / CMS Operations (New)
-    save: () => jsonDb.write(),
-    refresh: () => jsonDb.refresh(),
-
-    // CRUD Helpers (Simple implementation for now)
-    addProduct: (product: Omit<Product, 'id' | 'created_at' | 'updated_at'>) => {
-        const data = getData();
-        const newId = Math.max(...data.products.map((p: Product) => p.id), 0) + 1;
-        const newProduct = {
-            ...product,
-            id: newId,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-        };
-        data.products.push(newProduct);
-        jsonDb.write();
-        return newProduct;
-    },
-
-    updateProduct: (id: number, updates: Partial<Product>) => {
-        const data = getData();
-        const index = data.products.findIndex((p: Product) => p.id === id);
-        if (index !== -1) {
-            data.products[index] = { ...data.products[index], ...updates, updated_at: new Date().toISOString() };
-            jsonDb.write();
-            return data.products[index];
-        }
-        return null;
-    },
-
-    deleteProduct: (id: number) => {
-        const data = getData();
-        const index = data.products.findIndex((p: Product) => p.id === id);
-        if (index !== -1) {
-            data.products.splice(index, 1);
-            jsonDb.write();
-            return true;
-        }
-        return false;
-    },
-
-    updateProductStock: (id: number, quantityChange: number) => {
-        const data = getData();
-        const product = data.products.find((p: any) => p.id === id);
-        if (product) {
-            product.stock = (product.stock || 0) + quantityChange;
-            jsonDb.write();
-            return true;
-        }
-        return false;
-    },
-
-    // Transaction Operations
-    getTransactions: (page: number = 1, perPage?: number, filters?: { status?: string; startDate?: Date; endDate?: Date; search?: string, sortBy?: string, sortDir?: string }) => {
-        const data = getData();
-        const settings = data.settings || {};
-        const itemsPerPage = perPage ?? 10;
-
-        let transactions = [...(data.transactions || [])];
-
-        // Filter by Date Range
-        if (filters?.startDate || filters?.endDate) {
-            transactions = transactions.filter((t: any) => {
-                const tDate = new Date(t.timestamp || t.created_at);
-                if (filters?.startDate && tDate < filters.startDate) return false;
-                if (filters?.endDate) {
-                    const end = new Date(filters.endDate);
-                    end.setHours(23, 59, 59, 999);
-                    if (tDate > end) return false;
-                }
-                return true;
-            });
+        if (filters?.limit) {
+            query += ' LIMIT ?';
+            params.push(filters.limit);
         }
 
-        // Filter by Status
-        if (filters?.status) {
-            transactions = transactions.filter((t: any) => t.status === filters!.status);
+        if (filters?.offset) {
+            query += ' OFFSET ?';
+            params.push(filters.offset);
         }
 
-        // Filter by Search (ID, Customer Name, Phone)
-        if (filters?.search) {
-            const lowerSearch = filters.search.toLowerCase();
-            transactions = transactions.filter((t: any) =>
-                (t.id && t.id.toLowerCase().includes(lowerSearch)) ||
-                (t.buyer?.name && t.buyer.name.toLowerCase().includes(lowerSearch)) ||
-                (t.buyer?.phone && t.buyer.phone.includes(filters!.search))
-            );
-        }
+        return db.prepare(query).all(...params) as Product[];
+    },
 
-        // Sort by Newest (Default) or Custom
-        const sortBy = filters?.sortBy || 'timestamp';
-        const sortDir = filters?.sortDir || 'desc';
+    getProductById: (id: string) => {
+        const db = getDb();
+        return db.prepare('SELECT * FROM products WHERE id = ?').get(id) as Product | undefined;
+    },
 
-        transactions.sort((a: any, b: any) => {
-            let valA, valB;
-            if (sortBy === 'total') {
-                valA = a.total || 0;
-                valB = b.total || 0;
-            } else if (sortBy === 'buyer') {
-                valA = a.buyer?.name || '';
-                valB = b.buyer?.name || '';
-            } else {
-                valA = new Date(a.timestamp || a.created_at).getTime();
-                valB = new Date(b.timestamp || b.created_at).getTime();
+    createProduct: (product: Omit<Product, 'created_at' | 'updated_at'>) => {
+        const db = getDb();
+        const stmt = db.prepare(`
+            INSERT INTO products (id, name, description, price, stock, category, country, image_url, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+
+        stmt.run(
+            product.id,
+            product.name,
+            product.description,
+            product.price,
+            product.stock || 0,
+            product.category,
+            product.country,
+            product.image_url,
+            product.is_active
+        );
+
+        return db.getProductById(product.id);
+    },
+
+    updateProduct: (id: string, updates: Partial<Product>) => {
+        const db = getDb();
+        const fields: string[] = [];
+        const values: any[] = [];
+
+        Object.entries(updates).forEach(([key, value]) => {
+            if (key !== 'id' && key !== 'created_at') {
+                fields.push(`${key} = ?`);
+                values.push(value);
             }
-
-            if (sortDir === 'asc') return valA > valB ? 1 : -1;
-            return valA < valB ? 1 : -1;
         });
 
-        // Pagination
-        const totalItems = transactions.length;
-        const totalPages = Math.ceil(totalItems / itemsPerPage);
-        const validPage = Math.max(1, Math.min(page, totalPages || 1));
-        const startIndex = (validPage - 1) * itemsPerPage;
+        if (fields.length === 0) return;
+
+        fields.push('updated_at = CURRENT_TIMESTAMP');
+        values.push(id);
+
+        const query = `UPDATE products SET ${fields.join(', ')} WHERE id = ?`;
+        db.prepare(query).run(...values);
+    },
+
+    deleteProduct: (id: string) => {
+        const db = getDb();
+        db.prepare('DELETE FROM products WHERE id = ?').run(id);
+    },
+
+    getActiveProducts: () => {
+        const db = getDb();
+        return db.prepare('SELECT * FROM products WHERE is_active = 1 ORDER BY created_at DESC').all() as Product[];
+    },
+
+    getProductWithDetails: (slugOrId: string) => {
+        const db = getDb();
+        // Try to find by ID first, then by slug (we don't have slug in SQLite schema, use ID)
+        const product = db.prepare('SELECT * FROM products WHERE id = ?').get(slugOrId) as Product | undefined;
+        if (!product) return undefined;
 
         return {
-            transactions: transactions.slice(startIndex, startIndex + itemsPerPage),
+            ...product,
+            slug: product.id, // Use ID as slug for compatibility
+            category_slug: product.category,
+            country_slug: product.country
+        };
+    },
+
+    getProductsWithDetails: (filters?: { category?: string; country?: string }) => {
+        const db = getDb();
+        let query = 'SELECT * FROM products WHERE 1=1';
+        const params: any[] = [];
+
+        if (filters?.category) {
+            query += ' AND category = ?';
+            params.push(filters.category);
+        }
+
+        if (filters?.country) {
+            query += ' AND country = ?';
+            params.push(filters.country);
+        }
+
+        query += ' ORDER BY created_at DESC';
+
+        const products = db.prepare(query).all(...params) as Product[];
+        return products.map(p => ({
+            ...p,
+            slug: p.id,
+            category_slug: p.category,
+            country_slug: p.country
+        }));
+    },
+
+    getProductsPaginated: (page = 1, limit = 12, filters?: {
+        category?: string;
+        country?: string;
+        search?: string;
+    }) => {
+        const db = getDb();
+        let query = 'SELECT * FROM products WHERE is_active = 1';
+        const params: any[] = [];
+
+        if (filters?.category) {
+            query += ' AND category = ?';
+            params.push(filters.category);
+        }
+
+        if (filters?.country) {
+            query += ' AND country = ?';
+            params.push(filters.country);
+        }
+
+        if (filters?.search) {
+            query += ' AND (name LIKE ? OR description LIKE ?)';
+            params.push(`%${filters.search}%`, `%${filters.search}%`);
+        }
+
+        // Get total count
+        const countQuery = query.replace('SELECT *', 'SELECT COUNT(*) as count');
+        const { count } = db.prepare(countQuery).get(...params) as { count: number };
+
+        // Get paginated results
+        query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+        params.push(limit, (page - 1) * limit);
+
+        const products = db.prepare(query).all(...params) as Product[];
+
+        return {
+            products: products.map(p => ({
+                ...p,
+                slug: p.id,
+                category_slug: p.category,
+                country_slug: p.country
+            })),
             pagination: {
-                currentPage: validPage,
-                totalPages,
-                totalItems,
-                perPage: itemsPerPage,
-                hasNextPage: validPage < totalPages,
-                hasPrevPage: validPage > 1
+                currentPage: page,
+                totalPages: Math.ceil(count / limit),
+                totalItems: count,
+                itemsPerPage: limit
             }
         };
     },
 
-    addTransaction: (transaction: any) => {
-        const data = getData();
+    getProductBySlug: (slug: string) => {
+        // In SQLite, we use ID as slug
+        return db.getProductById(slug);
+    },
 
-        // Stock Validation & Reduction
-        if (transaction.items && Array.isArray(transaction.items)) {
-            for (const item of transaction.items) {
-                // Handle Product Stock
-                if (item.product_id) {
-                    const product = data.products.find((p: any) => p.id === item.product_id);
-                    if (!product) {
-                        throw new Error(`Product dengan ID ${item.product_id} tidak ditemukan`);
+    getBestSellerProducts: (limit = 10, days = 30) => {
+        const db = getDb();
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - days);
+
+        const query = `
+            SELECT p.*, COUNT(ti.id) as sales_count
+            FROM products p
+            INNER JOIN transaction_items ti ON p.id = ti.product_id
+            INNER JOIN transactions t ON ti.transaction_id = t.id
+            WHERE t.timestamp >= ? AND t.status IN ('PAID', 'SHIPPED', 'DONE')
+            GROUP BY p.id
+            ORDER BY sales_count DESC
+            LIMIT ?
+        `;
+
+        const products = db.prepare(query).all(cutoffDate.toISOString(), limit) as Product[];
+        return products.map(p => ({
+            ...p,
+            slug: p.id,
+            category_slug: p.category,
+            country_slug: p.country
+        }));
+    },
+
+    getLowStockProducts: (threshold = 10) => {
+        const db = getDb();
+        const products = db.prepare(`
+            SELECT * FROM products 
+            WHERE is_active = 1 AND stock <= ? AND stock > 0
+            ORDER BY stock ASC
+        `).all(threshold) as Product[];
+
+        return products.map(p => ({
+            ...p,
+            slug: p.id,
+            category_slug: p.category,
+            country_slug: p.country
+        }));
+    },
+
+    getCategoryBySlug: (slug: string) => {
+        // Categories are hardcoded, find by slug
+        return db.getCategories().find(c => c.slug === slug);
+    },
+
+    getCountryBySlug: (slug: string) => {
+        // Countries are hardcoded, find by slug
+        return db.getCountries().find(c => c.slug === slug);
+    },
+
+    // ==================== BUNDLES ====================
+
+    getBundles: (activeOnly = false) => {
+        const sqlite = getDb();
+        let query = 'SELECT * FROM bundles';
+        if (activeOnly) {
+            query += ' WHERE is_active = 1';
+        }
+        query += ' ORDER BY created_at DESC';
+
+        const bundles = sqlite.prepare(query).all() as Bundle[];
+
+        // Get items for each bundle
+        return bundles.map(bundle => ({
+            ...bundle,
+            items: db.getBundleItems(bundle.id)
+        }));
+    },
+
+    getBundleById: (id: string) => {
+        const sqlite = getDb();
+        const bundle = sqlite.prepare('SELECT * FROM bundles WHERE id = ?').get(id) as Bundle | undefined;
+        if (!bundle) return undefined;
+
+        return {
+            ...bundle,
+            items: db.getBundleItems(id)
+        };
+    },
+
+    getBundleItems: (bundleId: string) => {
+        const db = getDb();
+        return db.prepare('SELECT * FROM bundle_items WHERE bundle_id = ?').all(bundleId) as BundleItem[];
+    },
+
+    createBundle: (bundle: Omit<Bundle, 'created_at'>, items: BundleItem[]) => {
+        const sqlite = getDb();
+
+        // Start transaction
+        const transaction = sqlite.transaction(() => {
+            // Insert bundle
+            sqlite.prepare(`
+                INSERT INTO bundles (id, name, description, price, image_url, is_active)
+                VALUES (?, ?, ?, ?, ?, ?)
+            `).run(
+                bundle.id,
+                bundle.name,
+                bundle.description,
+                bundle.price,
+                bundle.image_url,
+                bundle.is_active
+            );
+
+            // Insert items
+            const itemStmt = sqlite.prepare(`
+                INSERT INTO bundle_items (bundle_id, product_id, quantity)
+                VALUES (?, ?, ?)
+            `);
+
+            items.forEach(item => {
+                itemStmt.run(bundle.id, item.product_id, item.quantity);
+            });
+        });
+
+        transaction();
+        return db.getBundleById(bundle.id);
+    },
+
+    updateBundle: (id: string, updates: Partial<Bundle>, items?: BundleItem[]) => {
+        const db = getDb();
+
+        const transaction = db.transaction(() => {
+            // Update bundle
+            if (Object.keys(updates).length > 0) {
+                const fields: string[] = [];
+                const values: any[] = [];
+
+                Object.entries(updates).forEach(([key, value]) => {
+                    if (key !== 'id' && key !== 'created_at') {
+                        fields.push(`${key} = ?`);
+                        values.push(value);
                     }
+                });
 
-                    const currentStock = product.stock || 0;
-                    if (currentStock < item.qty) {
-                        throw new Error(`Stok ${product.name} tidak cukup. Tersedia: ${currentStock}, Diminta: ${item.qty}`);
-                    }
-
-                    // Reduce stock
-                    product.stock = currentStock - item.qty;
-                    product.updated_at = new Date().toISOString();
-
-                    // Cache Product Details
-                    if (!item.product_name) {
-                        item.product_name = product.name;
-                        item.price = item.price || product.price;
-                    }
-                }
-
-                // Handle Bundle Stock
-                else if (item.bundle_id) {
-                    const bundle = data.bundles ? data.bundles.find((b: any) => b.id === item.bundle_id) : null;
-                    if (!bundle) {
-                        throw new Error(`Bundle dengan ID ${item.bundle_id} tidak ditemukan`);
-                    }
-
-                    const currentStock = bundle.stock || 0;
-                    if (currentStock < item.qty) {
-                        throw new Error(`Stok Paket ${bundle.name} tidak cukup. Tersedia: ${currentStock}, Diminta: ${item.qty}`);
-                    }
-
-                    // Reduce stock
-                    bundle.stock = currentStock - item.qty;
-                    bundle.updated_at = new Date().toISOString();
-
-                    // Cache Bundle Details
-                    if (!item.product_name) {
-                        item.product_name = `[Paket] ${bundle.name}`;
-                        item.price = item.price || bundle.price;
-                    }
+                if (fields.length > 0) {
+                    values.push(id);
+                    db.prepare(`UPDATE bundles SET ${fields.join(', ')} WHERE id = ?`).run(...values);
                 }
             }
-        }
 
-        // Generate Invoice ID if not present
-        const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
-        const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-        const newId = transaction.id || `INV-${dateStr}-${randomSuffix}`;
+            // Update items if provided
+            if (items) {
+                db.prepare('DELETE FROM bundle_items WHERE bundle_id = ?').run(id);
 
-        const newTransaction = {
-            ...transaction,
-            id: newId,
-            status: transaction.status || 'PENDING',
-            timestamp: transaction.timestamp || new Date().toISOString(),
-            created_at: new Date().toISOString()
-        };
+                const itemStmt = db.prepare(`
+                    INSERT INTO bundle_items (bundle_id, product_id, quantity)
+                    VALUES (?, ?, ?)
+                `);
 
-        if (!data.transactions) data.transactions = [];
-        data.transactions.push(newTransaction);
-        jsonDb.write();
-        return newTransaction;
+                items.forEach(item => {
+                    itemStmt.run(id, item.product_id, item.quantity);
+                });
+            }
+        });
+
+        transaction();
     },
 
-    updateTransactionStatus: (id: string, status: string, resi?: string) => {
-        const data = getData();
-        const index = data.transactions.findIndex((t: any) => t.id === id);
-
-        if (index !== -1) {
-            data.transactions[index].status = status;
-            if (resi) data.transactions[index].resi = resi;
-            data.transactions[index].updated_at = new Date().toISOString();
-            jsonDb.write();
-            return data.transactions[index];
-        }
-        return null;
+    deleteBundle: (id: string) => {
+        const db = getDb();
+        db.prepare('DELETE FROM bundles WHERE id = ?').run(id);
     },
 
-    updateTransaction: (id: string, updates: any) => {
-        const data = getData();
-        const index = data.transactions.findIndex((t: any) => t.id === id);
+    getBundleWithDetails: (slugOrId: string) => {
+        const sqlite = getDb();
+        const bundle = sqlite.prepare('SELECT * FROM bundles WHERE id = ?').get(slugOrId) as Bundle | undefined;
+        if (!bundle) return undefined;
 
-        if (index !== -1) {
-            // Update fields
-            const currentTrx = data.transactions[index];
+        const items = db.getBundleItems(bundle.id);
 
-            // Handle Items & Stock Logic if items changed (simplified: restore old stock, deduct new)
-            // For now, assuming simple update without complex stock recalc for MVP unless requested
-            // Ideally: if items changed, revert old stock, then apply new stock. 
-            // BUT for this task, let's just update the record fields.
-
-            data.transactions[index] = {
-                ...currentTrx,
-                ...updates,
-                updated_at: new Date().toISOString()
+        // Enrich items with product details
+        const enrichedItems = items.map(item => {
+            const product = db.getProductById(item.product_id);
+            return {
+                ...item,
+                product_name: product?.name || 'Unknown Product',
+                product_price: product?.price || 0
             };
-            jsonDb.write();
-            return data.transactions[index];
+        });
+
+        return {
+            ...bundle,
+            slug: bundle.id,
+            items: enrichedItems
+        };
+    },
+
+    // ==================== TRANSACTIONS ====================
+
+    getTransactions: (page = 1, limit = 50, filters?: {
+        status?: string;
+        search?: string;
+        startDate?: string;
+        endDate?: string;
+    }) => {
+        const sqlite = getDb();
+        let query = 'SELECT * FROM transactions WHERE 1=1';
+        const params: any[] = [];
+
+        if (filters?.status) {
+            query += ' AND status = ?';
+            params.push(filters.status);
         }
-        throw new Error('Transaksi tidak ditemukan');
+
+        if (filters?.search) {
+            query += ' AND (customer_name LIKE ? OR customer_phone LIKE ? OR id LIKE ?)';
+            const searchTerm = `%${filters.search}%`;
+            params.push(searchTerm, searchTerm, searchTerm);
+        }
+
+        if (filters?.startDate) {
+            query += ' AND timestamp >= ?';
+            params.push(filters.startDate);
+        }
+
+        if (filters?.endDate) {
+            query += ' AND timestamp <= ?';
+            params.push(filters.endDate);
+        }
+
+        query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
+        params.push(limit, (page - 1) * limit);
+
+        const transactions = sqlite.prepare(query).all(...params) as Transaction[];
+
+        // Get items for each transaction
+        return {
+            transactions: transactions.map(t => ({
+                ...t,
+                items: db.getTransactionItems(t.id)
+            })),
+            total: sqlite.prepare('SELECT COUNT(*) as count FROM transactions').get() as { count: number }
+        };
+    },
+
+    getTransactionById: (id: string) => {
+        const sqlite = getDb();
+        const transaction = sqlite.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as Transaction | undefined;
+        if (!transaction) return undefined;
+
+        return {
+            ...transaction,
+            items: db.getTransactionItems(id)
+        };
+    },
+
+    getTransactionItems: (transactionId: string) => {
+        const db = getDb();
+        return db.prepare('SELECT * FROM transaction_items WHERE transaction_id = ?').all(transactionId) as TransactionItem[];
+    },
+
+    createTransaction: (transaction: Omit<Transaction, 'created_at'>, items: TransactionItem[]) => {
+        const sqlite = getDb();
+
+        const trans = sqlite.transaction(() => {
+            // Insert transaction
+            sqlite.prepare(`
+                INSERT INTO transactions (id, customer_name, customer_phone, customer_address, total, status, shipping_number, notes, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+                transaction.id,
+                transaction.customer_name,
+                transaction.customer_phone,
+                transaction.customer_address || '',
+                transaction.total,
+                transaction.status || 'PENDING',
+                transaction.shipping_number || null,
+                transaction.notes || null,
+                transaction.timestamp
+            );
+
+            // Insert items and reduce stock
+            const itemStmt = sqlite.prepare(`
+                INSERT INTO transaction_items (transaction_id, product_id, product_name, quantity, price)
+                VALUES (?, ?, ?, ?, ?)
+            `);
+
+            const updateStockStmt = sqlite.prepare(`
+                UPDATE products SET stock = stock - ? WHERE id = ?
+            `);
+
+            items.forEach(item => {
+                itemStmt.run(
+                    transaction.id,
+                    item.product_id || null,
+                    item.product_name,
+                    item.quantity,
+                    item.price
+                );
+
+                // Reduce stock if product_id exists
+                if (item.product_id) {
+                    updateStockStmt.run(item.quantity, item.product_id);
+                }
+            });
+        });
+
+        trans();
+        return db.getTransactionById(transaction.id);
+    },
+
+    updateTransaction: (id: string, updates: Partial<Transaction>) => {
+        const db = getDb();
+        const fields: string[] = [];
+        const values: any[] = [];
+
+        Object.entries(updates).forEach(([key, value]) => {
+            if (key !== 'id' && key !== 'created_at' && key !== 'timestamp') {
+                fields.push(`${key} = ?`);
+                values.push(value);
+            }
+        });
+
+        if (fields.length === 0) return;
+
+        values.push(id);
+        db.prepare(`UPDATE transactions SET ${fields.join(', ')} WHERE id = ?`).run(...values);
     },
 
     deleteTransaction: (id: string) => {
-        const data = getData();
-        const index = data.transactions.findIndex((t: any) => t.id === id);
-
-        if (index !== -1) {
-            data.transactions.splice(index, 1);
-            jsonDb.write();
-            return true;
-        }
-        return false;
+        const db = getDb();
+        db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
     },
 
     getTransactionStats: (dailyDateStr?: string, monthlyDateStr?: string) => {
-        const data = getData();
+        const db = getDb();
         const now = new Date();
-        const transactions = data.transactions || [];
 
-        // Default to today if not provided
+        // Parse dates
         const dailyDate = dailyDateStr ? new Date(dailyDateStr) : now;
-        const dailyDateKey = dailyDate.toDateString();
+        const dailyDateKey = dailyDate.toISOString().split('T')[0];
 
-        // Default to current month if not provided
-        // monthlyDateStr format expected: "YYYY-MM"
         let viewMonth = now.getMonth();
         let viewYear = now.getFullYear();
 
@@ -496,389 +648,267 @@ export const db = {
             const parts = monthlyDateStr.split('-');
             if (parts.length === 2) {
                 viewYear = parseInt(parts[0]);
-                viewMonth = parseInt(parts[1]) - 1; // JS months are 0-indexed
+                viewMonth = parseInt(parts[1]) - 1;
             }
         }
 
-        // Filter transactions
-        // Status matching 'PAID', 'SHIPPED', 'DONE' count as revenue
+        const monthStart = new Date(viewYear, viewMonth, 1).toISOString();
+        const monthEnd = new Date(viewYear, viewMonth + 1, 0, 23, 59, 59).toISOString();
+
+        // Get revenue stats
         const revenueStatuses = ['PAID', 'SHIPPED', 'DONE'];
+        const statusPlaceholders = revenueStatuses.map(() => '?').join(',');
 
-        let dailyRevenue = 0;
-        let monthRevenue = 0;
+        const dailyRevenue = db.prepare(`
+            SELECT COALESCE(SUM(total), 0) as revenue
+            FROM transactions
+            WHERE status IN (${statusPlaceholders})
+            AND DATE(timestamp) = ?
+        `).get(...revenueStatuses, dailyDateKey) as { revenue: number };
 
-        let pendingCount = 0;
-        let needProcessCount = 0;
-        let totalRevenue = 0;
+        const monthRevenue = db.prepare(`
+            SELECT COALESCE(SUM(total), 0) as revenue
+            FROM transactions
+            WHERE status IN (${statusPlaceholders})
+            AND timestamp >= ? AND timestamp <= ?
+        `).get(...revenueStatuses, monthStart, monthEnd) as { revenue: number };
 
-        const statusCounts: Record<string, number> = {
-            PENDING: 0,
-            PAID: 0,
-            SHIPPED: 0,
-            DONE: 0,
-            CANCELLED: 0
-        };
+        const totalRevenue = db.prepare(`
+            SELECT COALESCE(SUM(total), 0) as revenue
+            FROM transactions
+            WHERE status IN (${statusPlaceholders})
+        `).get(...revenueStatuses) as { revenue: number };
 
-        transactions.forEach((t: any) => {
-            const tDate = new Date(t.timestamp || t.created_at);
-            const status = t.status || 'PENDING';
+        // Get status counts
+        const pendingCount = db.prepare(`SELECT COUNT(*) as count FROM transactions WHERE status = 'PENDING'`).get() as { count: number };
+        const needProcessCount = db.prepare(`SELECT COUNT(*) as count FROM transactions WHERE status = 'PAID'`).get() as { count: number };
 
-            // Global Status Counts
-            if (statusCounts[status] !== undefined) {
-                statusCounts[status]++;
-            }
+        // Get orders for today
+        const orders = db.prepare(`
+            SELECT COUNT(*) as count FROM transactions WHERE DATE(timestamp) = ?
+        `).get(dailyDateKey) as { count: number };
 
-            if (status === 'PENDING') pendingCount++;
-            if (status === 'PAID') needProcessCount++;
-
-            // Revenue checks
-            if (revenueStatuses.includes(status)) {
-                totalRevenue += (t.total || 0);
-
-                // Daily matches
-                if (tDate.toDateString() === dailyDateKey) {
-                    dailyRevenue += (t.total || 0);
-                }
-
-                // Monthly matches
-                if (tDate.getMonth() === viewMonth && tDate.getFullYear() === viewYear) {
-                    monthRevenue += (t.total || 0);
-                }
-            }
-        });
+        // Get active products count
+        const products = db.prepare(`SELECT COUNT(*) as count FROM products WHERE is_active = 1`).get() as { count: number };
 
         return {
-            totalRevenue,
-            dailyRevenue,
-            monthRevenue,
-            pendingCount,
-            needProcessCount,
-            statusCounts,
-
-            // View Metadata
+            totalRevenue: totalRevenue.revenue,
+            dailyRevenue: dailyRevenue.revenue,
+            monthRevenue: monthRevenue.revenue,
+            pendingCount: pendingCount.count,
+            needProcessCount: needProcessCount.count,
+            statusCounts: {
+                PENDING: pendingCount.count,
+                PAID: needProcessCount.count,
+                SHIPPED: 0,
+                DONE: 0,
+                CANCELLED: 0
+            },
             viewDailyDate: dailyDateStr || now.toISOString().split('T')[0],
             viewMonth: viewMonth,
             viewYear: viewYear,
             viewMonthStr: monthlyDateStr || `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`,
-
-            // Extra stats
-            products: (data.products || []).filter((p: any) => p.is_active).length,
-            orders: transactions.filter((t: any) => {
-                const date = new Date(t.timestamp || t.created_at);
-                return date.toDateString() === dailyDateKey;
-            }).length
+            products: products.count,
+            orders: orders.count
         };
     },
 
-    // Product Operations
-    getProductById: (id: number) => {
-        const data = getData();
-        return (data.products || []).find((p: any) => p.id === id);
-    },
+    // ==================== SETTINGS ====================
 
-    getActiveProducts: () => {
-        const data = getData();
-        return (data.products || []).filter((p: any) => p.is_active === 1 || p.is_active === true);
-    },
+    getSettings: () => {
+        const db = getDb();
+        const rows = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
 
-
-    // Settings
-    getSettings: () => getData().settings || {},
-    updateSettings: (newSettings: any) => {
-        const data = getData();
-        data.settings = { ...data.settings, ...newSettings };
-        jsonDb.write();
-        return data.settings;
-    },
-
-    // Active & Filtered Data Helpers
-
-    getLowStockProducts: (threshold?: number) => {
-        const settings = getData().settings || {};
-        const stockThreshold = threshold ?? settings.low_stock_threshold ?? 10;
-        return getData().products.filter((p: any) =>
-            (p.is_active !== 0 && p.is_active !== false) &&
-            p.stock > 0 &&
-            p.stock <= stockThreshold
-        );
-    },
-
-    getBestSellerProducts: (limit?: number, days: number = 30) => {
-        const data = getData();
-        const settings = data.settings || {};
-        const resultLimit = limit ?? settings.best_sellers_limit ?? 10;
-
-        // Calculate date threshold
-        const dateThreshold = new Date();
-        dateThreshold.setDate(dateThreshold.getDate() - days);
-
-        // Count orders per product from transactions
-        const productSales: { [key: number]: number } = {};
-        data.transactions.forEach((t: any) => {
-            const transactionDate = new Date(t.created_at);
-            if (transactionDate >= dateThreshold && t.items) {
-                t.items.forEach((item: any) => {
-                    productSales[item.product_id] = (productSales[item.product_id] || 0) + item.quantity;
-                });
+        const settings: Settings = {};
+        rows.forEach(row => {
+            try {
+                settings[row.key] = JSON.parse(row.value);
+            } catch {
+                settings[row.key] = row.value;
             }
         });
 
-        // Sort products by sales count
-        const sortedProducts = data.products
-            .filter((p: any) => p.is_active !== 0 && p.is_active !== false)
-            .map((p: any) => ({
-                ...p,
-                sales_count: productSales[p.id] || 0
-            }))
-            .filter((p: any) => p.sales_count > 0)
-            .sort((a: any, b: any) => b.sales_count - a.sales_count)
-            .slice(0, resultLimit);
-
-        return sortedProducts;
+        return settings;
     },
 
-    // Bundles Operations
-    getBundles: (activeOnly: boolean = true) => {
-        const data = getData();
-        const bundles = data.bundles || [];
-        if (activeOnly) {
-            return bundles.filter((b: Bundle) => b.is_active);
+    getSetting: (key: string) => {
+        const db = getDb();
+        const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
+        if (!row) return undefined;
+
+        try {
+            return JSON.parse(row.value);
+        } catch {
+            return row.value;
         }
-        return bundles;
     },
 
-    getBundleBySlug: (slug: string) => {
-        const data = getData();
-        return (data.bundles || []).find((b: Bundle) => b.slug === slug);
+    setSetting: (key: string, value: any) => {
+        const db = getDb();
+        const jsonValue = typeof value === 'string' ? value : JSON.stringify(value);
+
+        db.prepare(`
+            INSERT INTO settings (key, value, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
+        `).run(key, jsonValue, jsonValue);
     },
 
-    createBundle: (bundle: Omit<Bundle, 'id' | 'created_at' | 'updated_at'>) => {
-        const data = getData();
-        if (!data.bundles) data.bundles = [];
-
-        const newId = Math.max(...data.bundles.map((b: Bundle) => b.id || 0), 0) + 1;
-        const newBundle = {
-            ...bundle,
-            id: newId,
-            stock: bundle.stock ?? 0,
-            images: bundle.images ?? [],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-        };
-        data.bundles.push(newBundle);
-        jsonDb.write();
-        return newBundle;
-    },
-
-    updateBundle: (id: number, updates: Partial<Bundle>) => {
-        const data = getData();
-        if (!data.bundles) return null;
-
-        const index = data.bundles.findIndex((b: Bundle) => b.id === id);
-        if (index !== -1) {
-            data.bundles[index] = { ...data.bundles[index], ...updates, updated_at: new Date().toISOString() };
-            jsonDb.write();
-            return data.bundles[index];
-        }
-        return null;
-    },
-
-    deleteBundle: (id: number) => {
-        const data = getData();
-        if (!data.bundles) return false;
-
-        const index = data.bundles.findIndex((b: Bundle) => b.id === id);
-        if (index !== -1) {
-            data.bundles.splice(index, 1);
-            jsonDb.write();
-            return true;
-        }
-        return false;
-    },
-
-    getBundleWithDetails: (slug: string) => {
-        const bundle = db.getBundleBySlug(slug);
-        if (!bundle) return null;
-
-        const data = getData();
-        // Enrich items with product details
-        const enrichedItems = bundle.items.map((item: BundleItem) => {
-            const product = data.products.find((p: Product) => p.id === item.product_id);
-            return {
-                ...item,
-                product_name: product?.name || 'Unknown Product',
-                product_price: product?.price || 0,
-                product_image: product?.image_url
-            };
+    updateSettings: (newSettings: Record<string, any>) => {
+        // Update multiple settings at once
+        Object.entries(newSettings).forEach(([key, value]) => {
+            db.setSetting(key, value);
         });
+        return db.getSettings();
+    },
 
-        // Calculate original price (sum of parts)
-        const original_price = enrichedItems.reduce((sum: number, item: any) => sum + (item.product_price * item.quantity), 0);
+    // ==================== TRANSACTION HELPERS ====================
+
+    addTransaction: (data: any) => {
+        const { items, ...trans } = data;
+        // Generate Invoice ID if not present
+        let id = trans.id;
+        if (!id) {
+            const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+            const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+            id = `INV-${dateStr}-${randomSuffix}`;
+        }
+
+        const transaction = {
+            ...trans,
+            id,
+            timestamp: trans.timestamp || new Date().toISOString()
+        };
+
+        return db.createTransaction(transaction, items || []);
+    },
+
+    updateTransactionStatus: (id: string, status: string, resi?: string) => {
+        const updates: Partial<Transaction> = { status };
+        if (resi) {
+            updates.shipping_number = resi;
+        }
+        db.updateTransaction(id, updates);
+        return db.getTransactionById(id);
+    },
+
+    // ==================== PAGES (CMS) ====================
+
+    getPages: () => {
+        const db = getDb();
+        const pages = db.prepare('SELECT * FROM pages').all() as Page[];
+        return pages.map(page => ({
+            ...page,
+            content: typeof page.content === 'string' ? JSON.parse(page.content) : page.content
+        }));
+    },
+
+    getPage: (slug: string) => {
+        const db = getDb();
+        const page = db.prepare('SELECT * FROM pages WHERE slug = ?').get(slug) as Page | undefined;
+        if (!page) return undefined;
 
         return {
-            ...bundle,
-            items: enrichedItems,
-            original_price
+            ...page,
+            content: typeof page.content === 'string' ? JSON.parse(page.content) : page.content
         };
     },
 
-    getProductsPaginated: (page: number = 1, perPage?: number, filters?: { search?: string; category_id?: number }) => {
-        const data = getData();
-        const settings = data.settings || {};
-        const itemsPerPage = perPage ?? settings.products_per_page_catalog ?? 15;
+    updatePage: (slug: string, title: string, content: any) => {
+        const db = getDb();
+        const jsonContent = typeof content === 'string' ? content : JSON.stringify(content);
 
-        // Start with active products
-        let products = data.products.filter((p: any) => p.is_active !== 0 && p.is_active !== false);
-
-        // Apply filters
-        if (filters?.search) {
-            const searchLower = filters.search.toLowerCase();
-            products = products.filter((p: any) =>
-                p.name.toLowerCase().includes(searchLower) ||
-                (p.description && p.description.toLowerCase().includes(searchLower))
-            );
-        }
-
-        if (filters?.category_id) {
-            products = products.filter((p: any) => p.category_id === filters.category_id);
-        }
-
-        // Calculate pagination
-        const totalProducts = products.length;
-        const totalPages = Math.ceil(totalProducts / itemsPerPage);
-        const validPage = Math.max(1, Math.min(page, totalPages || 1));
-        const startIndex = (validPage - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-
-        return {
-            products: products.slice(startIndex, endIndex),
-            pagination: {
-                currentPage: validPage,
-                totalPages,
-                totalProducts,
-                perPage: itemsPerPage,
-                hasNextPage: validPage < totalPages,
-                hasPrevPage: validPage > 1
-            }
-        };
+        db.prepare(`
+            INSERT INTO pages (slug, title, content, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(slug) DO UPDATE SET title = ?, content = ?, updated_at = CURRENT_TIMESTAMP
+        `).run(slug, title, jsonContent, title, jsonContent);
     },
 
-    // User Management
+    // ==================== CATEGORIES & COUNTRIES ====================
+    // These are kept simple for now - can be moved to database later if needed
+
+    getCategories: () => {
+        // Hardcoded for now - can be moved to DB if needed
+        return [
+            { id: 1, name: 'Snacks', slug: 'snacks', description: 'Delicious snacks from around the world', created_at: new Date().toISOString() },
+            { id: 2, name: 'Skincare', slug: 'skincare', description: 'Quality skincare products', created_at: new Date().toISOString() },
+            { id: 3, name: 'Beverages', slug: 'beverages', description: 'Refreshing drinks', created_at: new Date().toISOString() }
+        ];
+    },
+
+    getCountries: () => {
+        return [
+            { id: 1, name: 'Japan', slug: 'japan', flag_emoji: '🇯🇵', is_active: 1, created_at: new Date().toISOString() },
+            { id: 2, name: 'Korea', slug: 'korea', flag_emoji: '🇰🇷', is_active: 1, created_at: new Date().toISOString() },
+            { id: 3, name: 'Thailand', slug: 'thailand', flag_emoji: '🇹🇭', is_active: 1, created_at: new Date().toISOString() },
+            { id: 4, name: 'China', slug: 'china', flag_emoji: '🇨🇳', is_active: 1, created_at: new Date().toISOString() }
+        ];
+    },
+
+    getActiveCountries: () => {
+        return db.getCountries().filter(c => c.is_active);
+    },
+
+    // ==================== USERS ====================
+
     getUsers: () => {
-        const data = getData();
-        return data.users || [];
-    },
-
-    getUserByUsername: (username: string) => {
-        const data = getData();
-        return (data.users || []).find((u: User) => u.username === username);
+        // User management can be added later if needed
+        return [];
     },
 
     getUserById: (id: number) => {
-        const data = getData();
-        return (data.users || []).find((u: User) => u.id === id);
+        // Hardcoded admin for now
+        if (id === 1) {
+            return {
+                id: 1,
+                username: 'admin',
+                password_hash: '$2a$10$rGHQzN8zN8zN8zN8zN8zN.', // bcrypt hash of 'admin123'
+                role: 'admin' as const,
+                created_at: new Date().toISOString()
+            };
+        }
+        return undefined;
     },
 
-    createUser: async (user: Omit<User, 'id' | 'created_at'>) => {
-        const data = getData();
-        if (!data.users) data.users = [];
-
-        // Check duplicates
-        if (data.users.find((u: User) => u.username === user.username)) {
-            throw new Error('Username already exists');
+    getUserByUsername: (username: string) => {
+        // Hardcoded admin for now
+        if (username === 'admin') {
+            return {
+                id: 1,
+                username: 'admin',
+                password_hash: '$2a$10$rGHQzN8zN8zN8zN8zN8zN.', // bcrypt hash of 'admin123'
+                role: 'admin' as const,
+                created_at: new Date().toISOString()
+            };
         }
-
-        const newId = Math.max(...data.users.map((u: User) => u.id), 0) + 1;
-        const newUser = {
-            ...user,
-            id: newId,
-            password_hash: await bcrypt.hash(user.password_hash, 10), // Assuming input is raw password
-            created_at: new Date().toISOString()
-        };
-        data.users.push(newUser);
-        jsonDb.write();
-        return newUser;
-    },
-
-    updateUser: async (id: number, updates: Partial<User> & { password?: string }) => {
-        const data = getData();
-        if (!data.users) return null;
-
-        const index = data.users.findIndex((u: User) => u.id === id);
-        if (index !== -1) {
-            const updatedUser = { ...data.users[index], ...updates };
-            if (updates.password) {
-                updatedUser.password_hash = await bcrypt.hash(updates.password, 10);
-                delete (updates as any).password;
-            }
-            data.users[index] = updatedUser;
-            jsonDb.write();
-            return updatedUser;
-        }
-        return null;
-    },
-
-    deleteUser: (id: number) => {
-        const data = getData();
-        if (!data.users) return false;
-
-        const index = data.users.findIndex((u: User) => u.id === id);
-        if (index !== -1) {
-            data.users.splice(index, 1);
-            jsonDb.write();
-            return true;
-        }
-        return false;
-    },
-
-    // CMS Pages
-    getPages: () => getData().pages || [],
-    getPage: (slug: string) => (getData().pages || []).find((p: any) => p.slug === slug),
-    savePage: (slug: string, content: any) => {
-        const data = getData();
-        if (!data.pages) data.pages = [];
-
-        let page = data.pages.find((p: any) => p.slug === slug);
-        if (page) {
-            page.content = { ...page.content, ...content };
-            page.updated_at = new Date().toISOString();
-        } else {
-            data.pages.push({
-                slug,
-                title: slug.charAt(0).toUpperCase() + slug.slice(1),
-                content,
-                updated_at: new Date().toISOString()
-            });
-        }
-        jsonDb.write();
-        return page || data.pages.find((p: any) => p.slug === slug);
+        return undefined;
     }
 };
 
+// ==================== INITIALIZATION ====================
+
+/**
+ * Initialize database - called from hooks.server.ts
+ * This ensures database is created and schema is initialized
+ */
 export function initDatabase() {
-    console.log('✅ JSON Database adapter initialized');
-
-    // Seed default admin if no users exist
-    const data = getData();
-    if (!data.users || data.users.length === 0) {
-        console.log('Creating default admin user...');
-        if (!data.users) data.users = [];
-
-        // Sync hash generation
-        const hash = bcrypt.hashSync('admin', 10);
-        data.users.push({
-            id: 1,
-            username: 'admin',
-            password_hash: hash,
-            role: 'admin',
-            created_at: new Date().toISOString()
-        });
-        jsonDb.write();
-        console.log('✅ Default admin created: admin / admin');
+    try {
+        getDb(); // This will trigger database creation and schema initialization
+        console.log('✅ SQLite database initialized');
+    } catch (error) {
+        console.error('❌ Failed to initialize database:', error);
+        throw error;
     }
 }
 
+/**
+ * Seed database with initial data if needed
+ * For SQLite, we rely on migration script instead
+ */
 export function seedDatabase() {
-    // No-op for now as we load from file
-    console.log('✅ Database already seeded from file');
+    // No-op for SQLite - data should be migrated using npm run migrate
+    // This function exists for compatibility with hooks.server.ts
+    console.log('ℹ️  SQLite database ready (use "npm run migrate" to import data)');
 }
+

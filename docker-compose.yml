@@ -8,17 +8,16 @@ services:
     volumes:
       # Persist SQLite database
       - ./data:/app/data
-      # Persist uploaded images
-      - ./uploads:/app/uploads
-      # Optional: Custom static assets (watermarks, etc.)
-      - ./static:/app/static
+      # Persist uploaded images (mapped to static for serving)
+      - ./uploads:/app/static/uploads
     environment:
       - NODE_ENV=production
       - ORIGIN=${ORIGIN:-http://localhost:3000}
       - PORT=3000
+      - HOST=0.0.0.0
       - SESSION_SECRET=${SESSION_SECRET}
       - DB_PATH=/app/data/arimbi.db
-      - UPLOAD_DIR=/app/uploads
+      - UPLOAD_DIR=/app/static/uploads
       - WATERMARK_PATH=/app/static/watermark.png
       - ADMIN_WHATSAPP=${ADMIN_WHATSAPP}
     env_file:

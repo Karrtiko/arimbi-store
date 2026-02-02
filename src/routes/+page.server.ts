@@ -49,7 +49,7 @@ export const load: PageServerLoad = async ({ url }) => {
         .slice(0, 4)
         .map((p: any) => db.getProductWithDetails(p.slug))
         .filter((p: any) => p !== undefined);
-    const heroImages = heroProducts.map((p: any) => p.image_url);
+    let heroImages = heroProducts.map((p: any) => p.image_url);
 
     // Real Bundles Data
     const rawBundles = db.getBundles(true); // Get active only
@@ -82,6 +82,11 @@ export const load: PageServerLoad = async ({ url }) => {
 
     // Get CMS Content for Home
     const homePage = db.getPage('home');
+
+    // Override hero images if set in CMS
+    if (homePage?.content?.hero_images && Array.isArray(homePage.content.hero_images) && homePage.content.hero_images.length > 0) {
+        heroImages = homePage.content.hero_images;
+    }
 
     return {
         recommendations,
