@@ -9,11 +9,34 @@ export const load: PageServerLoad = async ({ cookies }) => {
     return {};
 };
 
+const MAX_ATTEMPTS = 5;
+const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const loginAttempts = new Map<string, { count: number, resetTime: number }>();
+
 export const actions: Actions = {
-    default: async ({ request, cookies }) => {
+    default: async ({ cookies, request }) => {
         const data = await request.formData();
-        const username = String(data.get('username'));
-        const password = String(data.get('password'));
+        const username = data.get('username') as string;
+        const password = data.get('password') as string;
+
+        // Basic Rate Limiting
+        const ip = request.headers.get('x-forwarded-for') || 'unknown';
+        const key = `${ip}-${username}`;
+        const now = Date.now();
+
+        let record = loginAttempts.get(key);
+        if (!record || now > record.resetTime) {
+            record = { count: 0, resetTime: now + WINDOW_MS };
+        }
+
+        if (record.count >= MAX_ATTEMPTS) {
+            const waitTime = Math.ceil((record.resetTime - now) / 60000);
+            return fail(429, { message: `Terlalu banyak percobaan. Coba lagi dalam ${waitTime} menit.` });
+        }
+
+        // Update attempts
+        record.count++;
+        loginAttempts.set(key, record);
 
         // Initialize DB (creates default admin if needed)
         // In a real app, verify initDatabase is called at startup
@@ -31,6 +54,10 @@ export const actions: Actions = {
             console.log(`[LOGIN DEBUG] User found. ID: ${user.id}. Hash valid: ${valid}`);
 
             if (valid) {
+                // Clear attempts on success
+                loginAttempts.delete(key);
+
+                // Create session
                 console.log('[LOGIN SUCCESS] Setting cookie...');
                 cookies.set('admin_session', JSON.stringify({ id: user.id, role: user.role }), {
                     path: '/',

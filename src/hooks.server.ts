@@ -42,5 +42,13 @@ export const handle: Handle = async ({ event, resolve }) => {
         }
     }
 
-    return resolve(event);
+    const response = await resolve(event);
+
+    // Add Security Headers
+    response.headers.set('X-Frame-Options', 'DENY'); // Prevent Clickjacking
+    response.headers.set('X-Content-Type-Options', 'nosniff'); // Prevent MIME Sniffing
+    response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+    response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()'); // Limit browser features
+
+    return response;
 };
