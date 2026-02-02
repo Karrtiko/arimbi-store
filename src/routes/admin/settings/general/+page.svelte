@@ -52,10 +52,12 @@
 					id="admin_whatsapp"
 					name="admin_whatsapp"
 					value={form?.admin_whatsapp || data.settings.admin_whatsapp}
-					placeholder="62812345678"
+					placeholder="Contoh: 62812345678 atau 60123456789"
 					required
 				/>
-				<small>Format: 62xxx (tanpa tanda +)</small>
+				<small
+					>Format: Kode Negara + Nomor (Tanpa tanda +). Contoh: 628xxx (Indo), 601xxx (Malaysia)</small
+				>
 			</div>
 		</div>
 

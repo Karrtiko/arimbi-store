@@ -27,10 +27,14 @@ export const actions: Actions = {
             const products_per_category_home = parseInt(formData.get('products_per_category_home') as string);
             const best_sellers_limit = parseInt(formData.get('best_sellers_limit') as string);
 
-            // Validation
-            if (!admin_whatsapp || !admin_whatsapp.match(/^62\d{9,13}$/)) {
+            // Validation - Support International Numbers
+            // Minimal validation: just digits, allowing 8-15 chars typical for phone numbers
+            // remove non-digits first just in case
+            const numericPhone = admin_whatsapp.replace(/\D/g, '');
+
+            if (!numericPhone || numericPhone.length < 8 || numericPhone.length > 15) {
                 return fail(400, {
-                    error: 'Nomor WhatsApp tidak valid. Format: 62xxx (tanpa +)',
+                    error: 'Nomor WhatsApp tidak valid. Masukkan kode negara dan nomor (contoh: 62812345678)',
                     admin_whatsapp
                 });
             }
