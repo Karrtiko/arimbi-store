@@ -11,12 +11,10 @@
 
 	// Modal State
 	let showChatModal = $state(false);
-	let showParserModal = $state(false);
 	let selectedTrx: any = $state(null);
 
 	// Transaction Form State
 	let manualModal: any;
-	let waInput = $state('');
 
 	/* --- Colors & Assets moved to CSS --- */
 
@@ -113,101 +111,6 @@
 		selectedTrx = trx;
 		setTimeout(() => window.print(), 100);
 	}
-
-	function parseWaChat() {
-		// New Format Parser
-		const lines = waInput.split('\n');
-
-		// 1. Basic Info Regex - Uses lookaheads to stop at the next keyword
-		// Handles "Pesanan Atas nama: ABC Nomor Telp: ..." (Single line) or Newlines
-		const buyerNameMatch = waInput.match(
-			/(?:Pesanan Atas nama|Nama):\s*(.*?)(?=\s*(?:Nomor Telp|HP|Pengiriman ke)|$)/i
-		);
-		const buyerPhoneMatch = waInput.match(
-			/(?:Nomor Telp|HP):\s*(.*?)(?=\s*(?:Pengiriman ke|Nama Penerima|Alamat)|$)/i
-		);
-		const receiverNameMatch = waInput.match(
-			/Nama Penerima:\s*(.*?)(?=\s*(?:Alamat|HP Penerima)|$)/i
-		);
-
-		// Address: Capture until "Catatan" or "Terima Kasih"
-		const addressMatch = waInput.match(/Alamat:\s*([\s\S]*?)(?=\s*(?:Catatan|Terima Kasih)|$)/i);
-		const notesMatch = waInput.match(/Catatan:\s*([\s\S]*?)(?=\s*(?:Terima Kasih)|$)/i);
-
-		// 2. Items Match: "- Product Name (1x) ="
-		const itemRegex = /-\s+(.+?)\s+\((\d+)x\)\s+=/g;
-		let match;
-		const parsedItems = [];
-		const allSellables = [
-			...products.map((p) => ({ ...p, _type: 'product', searchName: p.name.toLowerCase() })),
-			...bundles.map((b) => ({ ...b, _type: 'bundle', searchName: b.name.toLowerCase() }))
-		];
-
-		while ((match = itemRegex.exec(waInput)) !== null) {
-			const productName = match[1].trim().toLowerCase();
-			const quantity = parseInt(match[2]);
-
-			// Try to find in combined list
-			const matchedItem = allSellables.find(
-				(item) => item.searchName === productName || productName.includes(item.searchName)
-			);
-
-			parsedItems.push({
-				// If matched, use the appropriate ID format that ManualModal will understand.
-				// NOTE: We need to update ManualModal to handle this passed 'products' list which might now include bundles?
-				// For now, let's assume we will pass a combined list to ManualModal.
-				// If it's a product, ID is just number. If bundle, maybe we treat it as product?
-				// If I pass bundles as "products", I need to make sure IDs don't clash?
-				// Let's assume for this step that I WILL update Modal to handle mixed IDs or distinct IDs.
-				// But wait, if I haven't updated Modal yet, this might break?
-				// The user asked to "fix parser".
-				product_id: matchedItem
-					? matchedItem._type === 'bundle'
-						? `b-${matchedItem.id}`
-						: matchedItem.id
-					: '',
-				qty: quantity,
-				product_name: matchedItem
-					? matchedItem._type === 'bundle'
-						? `[Paket] ${matchedItem.name}`
-						: matchedItem.name
-					: match[1].trim(),
-				price: matchedItem ? matchedItem.price : 0
-			});
-		}
-
-		// Fallback for default item if none found
-		if (parsedItems.length === 0) {
-			parsedItems.push({ product_id: '', qty: 1, product_name: '', price: 0 });
-		}
-
-		// 3. Construct Data
-		const parsedData = {
-			buyerName: buyerNameMatch?.[1]?.trim() || '',
-			buyerPhone: buyerPhoneMatch?.[1]?.trim() || '',
-			isGift: !!receiverNameMatch, // Auto-enable if receiver name is parsed
-			receiverName: receiverNameMatch?.[1]?.trim() || '',
-			// If receiver info is found, use it parsed, otherwise fallback to buyer if needed (but ManualModal handles this well)
-			receiverPhone: '', // Receiver phone often not separated in simple format, but user didn't specify distinct regex for it in example.
-			// Wait, "Pengiriman ke:" block usually implies it.
-			// If the user example had a specific Receiver Phone field, I'd parse it.
-			// In the example: "Nomor Telp: ..." is under Buyer.
-			// The example: "Nama Penerima: Manusia Lain", "Alamat: ...". No distinct Receiver Phone.
-			// I'll leave receiverPhone empty or maybe define logic later if needed.
-			address: addressMatch?.[1]?.trim() || '',
-			notes: notesMatch?.[1]?.trim() || '',
-			items: parsedItems
-		};
-
-		manualModal.show(parsedData);
-		showParserModal = false;
-		waInput = '';
-	}
-
-	function openManualInput() {
-		showParserModal = false;
-		manualModal.show();
-	}
 </script>
 
 <svelte:head>
@@ -226,30 +129,88 @@
 			<p>Kelola pesanan, invoice, dan chat pelanggan Arimbi Store.</p>
 		</div>
 		<div class="header-actions">
-			<button class="btn-primary" onclick={() => (showParserModal = true)}>
+			<button class="btn-primary" onclick={() => manualModal.show()}>
 				<span class="btn-icon">+</span> Input Pesanan WA
 			</button>
 		</div>
 	</header>
 
 	<!-- Stats Grid -->
+	<!-- Stats Grid -->
+	<!-- Stats Grid -->
 	<div class="stats-grid no-print">
-		<div class="stat-card">
-			<p class="stat-label">Pesanan Baru</p>
-			<h3 class="stat-value text-amber">{stats.pendingCount}</h3>
+		<!-- 1. Revenue Card (Leading) -->
+		<div class="stat-card" style="grid-column: span 2;">
+			<div class="stat-icon revenue">💰</div>
+			<div class="stat-info">
+				<div class="revenue-header">
+					<span class="stat-label">Omset Bulan Ini</span>
+					<span class="stat-value">{formatPrice(stats.monthRevenue || 0)}</span>
+				</div>
+				<div class="month-nav">
+					<span style="font-size: 0.75rem; color: #64748b; margin-right: 0.5rem;">
+						{new Date(stats.viewYear, stats.viewMonth).toLocaleDateString('id-ID', {
+							month: 'long',
+							year: 'numeric'
+						})}
+					</span>
+
+					<a
+						href="?month={(stats.viewMonth - 1 + 12) % 12}&year={stats.viewMonth === 0
+							? stats.viewYear - 1
+							: stats.viewYear}"
+						class="nav-btn"
+						title="Bulan Sebelumnya">◀</a
+					>
+					<a
+						href="?month={(stats.viewMonth + 1) % 12}&year={stats.viewMonth === 11
+							? stats.viewYear + 1
+							: stats.viewYear}"
+						class="nav-btn"
+						title="Bulan Berikutnya">▶</a
+					>
+				</div>
+			</div>
 		</div>
+
+		<!-- 2. Status Cards -->
 		<div class="stat-card">
-			<p class="stat-label">Siap Kirim</p>
-			<h3 class="stat-value text-blue">{stats.successCount}</h3>
+			<div class="stat-icon pending">⏳</div>
+			<div class="stat-info">
+				<span class="stat-label">Pending</span>
+				<span class="stat-value">{stats.statusCounts?.PENDING || 0}</span>
+			</div>
 		</div>
+
 		<div class="stat-card">
-			<p class="stat-label">Total Omzet</p>
-			<h3 class="stat-value text-indigo">{formatPrice(stats.monthRevenue)}</h3>
+			<div class="stat-icon paid">📦</div>
+			<div class="stat-info">
+				<span class="stat-label">Siap Kirim</span>
+				<span class="stat-value">{stats.statusCounts?.PAID || 0}</span>
+			</div>
 		</div>
+
 		<div class="stat-card">
-			<p class="stat-label">Target Bulanan</p>
-			<div class="progress-bar-bg">
-				<div class="progress-bar-fill" style="width: 70%"></div>
+			<div class="stat-icon shipped">🚚</div>
+			<div class="stat-info">
+				<span class="stat-label">Dikirim</span>
+				<span class="stat-value">{stats.statusCounts?.SHIPPED || 0}</span>
+			</div>
+		</div>
+
+		<div class="stat-card">
+			<div class="stat-icon done">✅</div>
+			<div class="stat-info">
+				<span class="stat-label">Selesai</span>
+				<span class="stat-value">{stats.statusCounts?.DONE || 0}</span>
+			</div>
+		</div>
+
+		<div class="stat-card">
+			<div class="stat-icon cancelled">❌</div>
+			<div class="stat-info">
+				<span class="stat-label">Batal</span>
+				<span class="stat-value">{stats.statusCounts?.CANCELLED || 0}</span>
 			</div>
 		</div>
 	</div>
@@ -287,42 +248,6 @@
 </div>
 
 <!-- Parser Modal -->
-{#if showParserModal}
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="modal-backdrop no-print" onclick={() => (showParserModal = false)} transition:fade>
-		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
-			<div class="modal-header">
-				<div>
-					<h3>Input Pesanan</h3>
-					<p class="modal-subtitle">Paste format order WA atau input manual</p>
-				</div>
-				<button onclick={() => (showParserModal = false)} class="btn-close">✕</button>
-			</div>
-			<div class="modal-body">
-				<textarea
-					bind:value={waInput}
-					placeholder="Contoh:&#10;Nama: Budi&#10;Alamat: Jl. Sudirman No 1&#10;HP: 08123..."
-					class="parser-textarea"
-					rows="5"
-				></textarea>
-				<div class="parser-actions">
-					<button
-						class="btn-primary w-full justify-center"
-						onclick={parseWaChat}
-						disabled={!waInput.trim()}
-					>
-						Proses Format WA
-					</button>
-					<div class="divider-text">ATAU</div>
-					<button class="btn-secondary w-full justify-center" onclick={openManualInput}>
-						Input Manual Tanpa Format
-					</button>
-				</div>
-			</div>
-		</div>
-	</div>
-{/if}
 
 <ManualTransactionModal bind:this={manualModal} {products} {bundles} />
 
@@ -496,24 +421,7 @@
 	.btn-primary:hover {
 		background-color: var(--primary-hover);
 	}
-	.btn-secondary {
-		background-color: white;
-		color: var(--text-dark);
-		border: 1px solid #e2e8f0;
-		padding: 0.75rem 1.25rem;
-		border-radius: 0.75rem;
-		font-weight: 600;
-		font-size: 0.9rem;
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		transition: background 0.2s;
-	}
-	.btn-secondary:hover {
-		background-color: #f8fafc;
-		border-color: #cbd5e1;
-	}
+
 	.btn-icon {
 		font-size: 1.1em;
 		line-height: 1;
@@ -528,7 +436,7 @@
 	/* Stats Grid */
 	.stats-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 		gap: 1.5rem;
 		margin-bottom: 2rem;
 	}
@@ -538,39 +446,100 @@
 		padding: 1.5rem;
 		border-radius: 1rem;
 		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		transition:
+			transform 0.2s,
+			box-shadow 0.2s;
+	}
+	.stat-card:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+	}
+	.stat-icon {
+		width: 48px;
+		height: 48px;
+		border-radius: 12px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 1.5rem;
+		flex-shrink: 0;
+	}
+
+	/* Icon Backgrounds */
+	.stat-icon.revenue {
+		background: #eff6ff;
+		color: #3b82f6;
+	} /* blue */
+	.stat-icon.pending {
+		background: #fef3c7;
+		color: #d97706;
+	} /* amber */
+	.stat-icon.paid {
+		background: #e0e7ff;
+		color: #4f46e5;
+	} /* indigo */
+	.stat-icon.shipped {
+		background: #f3e8ff;
+		color: #9333ea;
+	} /* purple */
+	.stat-icon.done {
+		background: #dcfce7;
+		color: #16a34a;
+	} /* green */
+	.stat-icon.cancelled {
+		background: #fee2e2;
+		color: #dc2626;
+	} /* red */
+
+	.stat-info {
+		display: flex;
+		flex-direction: column;
 	}
 	.stat-label {
-		font-size: 0.9rem;
+		font-size: 0.85rem;
 		color: var(--text-gray);
-		margin: 0 0 0.5rem 0;
+		margin: 0 0 0.25rem 0;
+		font-weight: 500;
 	}
 	.stat-value {
-		font-size: 1.5rem;
+		font-size: 1.25rem;
 		font-weight: 700;
 		margin: 0;
+		color: var(--text-dark);
 	}
 
-	.text-amber {
-		color: #d97706;
+	/* Specific Revenue Header Styles */
+	.revenue-header {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
 	}
-	.text-blue {
-		color: #2563eb;
+	.month-nav {
+		display: flex;
+		gap: 0.5rem;
+		margin-top: 0.25rem;
 	}
-	.text-indigo {
-		color: var(--primary);
-	}
-
-	.progress-bar-bg {
-		width: 100%;
+	.nav-btn {
 		background: #f1f5f9;
-		height: 8px;
-		border-radius: 99px;
-		margin-top: 1rem;
+		border: none;
+		border-radius: 4px;
+		width: 24px;
+		height: 24px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 0.7rem;
+		cursor: pointer;
+		text-decoration: none;
+		color: #64748b;
+		transition: background 0.2s;
 	}
-	.progress-bar-fill {
-		background: var(--primary);
-		height: 100%;
-		border-radius: 99px;
+	.nav-btn:hover {
+		background: #e2e8f0;
+		color: #334155;
 	}
 
 	/* Table */
@@ -840,39 +809,6 @@
 	}
 	.btn-template:hover .template-label {
 		color: var(--primary);
-	}
-
-	/* Parser Modal Specifics */
-	.parser-textarea {
-		width: 100%;
-		padding: 1rem;
-		border: 1px solid var(--border-color);
-		border-radius: 1rem;
-		background: #f8fafc;
-		font-size: 0.9rem;
-		resize: vertical;
-		outline: none;
-		margin-bottom: 0.5rem;
-		font-family: inherit;
-		box-sizing: border-box;
-	}
-	.parser-textarea:focus {
-		background: white;
-		border-color: var(--primary);
-		box-shadow: 0 0 0 3px var(--primary-light);
-	}
-	.parser-actions {
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-		align-items: center;
-		margin-top: 0.5rem;
-	}
-	.divider-text {
-		font-size: 0.7rem;
-		font-weight: 700;
-		color: #94a3b8;
-		letter-spacing: 0.1em;
 	}
 
 	/* Print Styles */

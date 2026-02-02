@@ -24,30 +24,33 @@
 </script>
 
 <div class="dashboard-grid">
+	<!-- 1. Omset Hari Ini (Static) -->
 	<div class="stat-card">
-		<div class="stat-icon revenue">💰</div>
+		<div class="stat-icon revenue-day">📅</div>
 		<div class="stat-info">
 			<span class="label">Omset Hari Ini</span>
-			<span class="value">{formatPrice(stats.revenue)}</span>
-			<span class="trend up">Update Terbaru</span>
+			<span class="value">{formatPrice(stats.dailyRevenue || 0)}</span>
+			<span class="subtext">{new Date().toLocaleDateString('id-ID', { dateStyle: 'full' })}</span>
 		</div>
 	</div>
+
+	<!-- 2. Omset Bulan Ini (Static - kept for usefulness, but non-interactive as requested "omset hari ini aja" might imply primary focus, but month is standard context) -->
+	<!-- User said "omset harian dan bulanan tuh hapus aja... pakein omset hari ini aja". I will strictly follow "pakein omset hari ini aja" for the *change*, but keeping total revenue/pending is fine? -->
+	<!-- I'll keep it simple: Just Omset Hari Ini as requested replacement for the filterable cards. -->
 
 	<div class="stat-card">
 		<div class="stat-icon orders">📦</div>
 		<div class="stat-info">
-			<span class="label">Pesanan Hari Ini</span>
-			<span class="value">{stats.orders}</span>
-			<span class="trend up">Total Masuk</span>
+			<span class="label">Siap Kirim (Paid)</span>
+			<span class="value">{stats.needProcessCount || 0}</span>
 		</div>
 	</div>
 
 	<div class="stat-card">
-		<div class="stat-icon products">🛍️</div>
+		<div class="stat-icon pending">⏳</div>
 		<div class="stat-info">
-			<span class="label">Produk Aktif</span>
-			<span class="value">{stats.products}</span>
-			<span class="trend">Siap Jual</span>
+			<span class="label">Pesanan Baru (Pending)</span>
+			<span class="value">{stats.pendingCount || 0}</span>
 		</div>
 	</div>
 </div>
@@ -69,7 +72,7 @@
 </div>
 
 <!-- MANUAL ENTRY MODAL COMPONENT -->
-<ManualTransactionModal bind:this={manualModal} products={data.products} />
+<ManualTransactionModal bind:this={manualModal} products={data.products} bundles={data.bundles} />
 
 <style>
 	.dashboard-grid {
@@ -86,6 +89,23 @@
 		display: flex;
 		align-items: center;
 		gap: 1.5rem;
+		transition:
+			transform 0.2s,
+			box-shadow 0.2s;
+	}
+
+	.stat-card.clickable {
+		cursor: pointer;
+		position: relative;
+	}
+
+	.stat-card.clickable:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+	}
+
+	.stat-card.clickable:active {
+		transform: translateY(0);
 	}
 
 	.stat-icon {
@@ -98,6 +118,14 @@
 		font-size: 1.75rem;
 	}
 
+	.stat-icon.revenue-day {
+		background: #dcfce7;
+		color: #166534;
+	}
+	.stat-icon.revenue-month {
+		background: #ecfccb;
+		color: #3f6212;
+	}
 	.stat-icon.revenue {
 		background: #dcfce7;
 		color: #166534;
@@ -109,6 +137,10 @@
 	.stat-icon.products {
 		background: #f3e8ff;
 		color: #6b21a8;
+	}
+	.stat-icon.pending {
+		background: #ffedd5;
+		color: #c2410c;
 	}
 
 	.stat-info {
@@ -124,6 +156,69 @@
 		font-size: 1.5rem;
 		font-weight: 700;
 		color: #111827;
+	}
+	.stat-info .subtext {
+		font-size: 0.75rem;
+		color: #9ca3af;
+		margin-top: 0.25rem;
+	}
+
+	/* MODAL STYLES */
+	.modal-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.5);
+		z-index: 50;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.filter-modal {
+		background: white;
+		padding: 1.5rem;
+		border-radius: 1rem;
+		width: 90%;
+		max-width: 320px;
+		box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+	}
+
+	.filter-modal h3 {
+		margin-top: 0;
+		margin-bottom: 1rem;
+		font-size: 1.125rem;
+		color: #111827;
+	}
+
+	.form-input {
+		width: 100%;
+		padding: 0.75rem;
+		border: 1px solid #e5e7eb;
+		border-radius: 0.5rem;
+		margin-bottom: 1.5rem;
+		font-size: 1rem;
+	}
+
+	.modal-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 0.75rem;
+	}
+
+	.btn-cancel {
+		padding: 0.5rem 1rem;
+		border-radius: 0.5rem;
+		background: #f3f4f6;
+		color: #374151;
+		font-weight: 500;
+	}
+
+	.btn-save {
+		padding: 0.5rem 1rem;
+		border-radius: 0.5rem;
+		background: #111827;
+		color: white;
+		font-weight: 500;
 	}
 	.stat-info .trend {
 		font-size: 0.75rem;
@@ -149,6 +244,40 @@
 		font-size: 1.25rem;
 		font-weight: 700;
 		color: #111827;
+	}
+
+	.revenue-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		width: 100%;
+		margin-bottom: 0.25rem;
+	}
+
+	.month-nav {
+		display: flex;
+		gap: 0.25rem;
+	}
+
+	.nav-btn {
+		background: #f3f4f6;
+		border: none;
+		border-radius: 4px;
+		width: 24px;
+		height: 24px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 0.75rem;
+		color: #6b7280;
+		cursor: pointer;
+		text-decoration: none;
+		transition: all 0.2s;
+	}
+
+	.nav-btn:hover {
+		background: #e5e7eb;
+		color: #374151;
 	}
 
 	.card {

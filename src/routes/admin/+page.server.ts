@@ -1,24 +1,35 @@
 import type { PageServerLoad, Actions } from './$types';
 import { db } from '$lib/server/db';
 
-export const load: PageServerLoad = async () => {
-    // 1. Get Stats (Today & Month)
-    const stats = db.getTransactionStats();
+export const load: PageServerLoad = async ({ url }) => {
+    // 1. Get Stats (Daily & Month)
+    const dailyDateParam = url.searchParams.get('date'); // YYYY-MM-DD
+    const monthlyDateParam = url.searchParams.get('month'); // YYYY-MM
 
-    // 2. Get Today's Transactions
-    const today = new Date().toDateString();
-    const allTransactions = db.getTransactions(1, 10); // Get first 10
-    const transactions = allTransactions.transactions.filter((t: any) => {
-        return new Date(t.timestamp).toDateString() === today;
+    const stats = db.getTransactionStats(dailyDateParam || undefined, monthlyDateParam || undefined);
+
+    // 2. Get Transactions for the Selected Date (Default Today)
+    const targetDate = dailyDateParam ? new Date(dailyDateParam) : new Date();
+    const targetDateKey = targetDate.toDateString();
+
+    // We might need to fetch more to filter correctly if DB doesn't support date filtering natively in getTransactions yet.
+    // Ideally db.getTransactions should accept a date filter, but for now filtering in memory is okay for small datasets.
+    // Or we fetch enough.
+    const allTransactionsResult = db.getTransactions(1, 50); // increased limit to find matches
+    const transactions = allTransactionsResult.transactions.filter((t: any) => {
+        const tDate = new Date(t.timestamp || t.created_at);
+        return tDate.toDateString() === targetDateKey;
     });
 
-    // 3. Get Active Products for manual form
+    // Get Active Products and Bundles for transaction modal
     const products = db.getActiveProducts();
+    const bundles = db.getBundles();
 
     return {
         stats,
         transactions,
-        products
+        products,
+        bundles
     };
 };
 

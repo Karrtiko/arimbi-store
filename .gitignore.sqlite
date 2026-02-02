@@ -1,0 +1,9 @@
+# Add data directory to gitignore
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Backup files
+*.backup
+backups/

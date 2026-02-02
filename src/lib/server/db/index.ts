@@ -478,22 +478,95 @@ export const db = {
         return false;
     },
 
-    getTransactionStats: () => {
+    getTransactionStats: (dailyDateStr?: string, monthlyDateStr?: string) => {
         const data = getData();
-        const transactions = data.transactions || [];
-        const today = new Date().toDateString();
         const now = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const transactions = data.transactions || [];
+
+        // Default to today if not provided
+        const dailyDate = dailyDateStr ? new Date(dailyDateStr) : now;
+        const dailyDateKey = dailyDate.toDateString();
+
+        // Default to current month if not provided
+        // monthlyDateStr format expected: "YYYY-MM"
+        let viewMonth = now.getMonth();
+        let viewYear = now.getFullYear();
+
+        if (monthlyDateStr && typeof monthlyDateStr === 'string') {
+            const parts = monthlyDateStr.split('-');
+            if (parts.length === 2) {
+                viewYear = parseInt(parts[0]);
+                viewMonth = parseInt(parts[1]) - 1; // JS months are 0-indexed
+            }
+        }
+
+        // Filter transactions
+        // Status matching 'PAID', 'SHIPPED', 'DONE' count as revenue
+        const revenueStatuses = ['PAID', 'SHIPPED', 'DONE'];
+
+        let dailyRevenue = 0;
+        let monthRevenue = 0;
+
+        let pendingCount = 0;
+        let needProcessCount = 0;
+        let totalRevenue = 0;
+
+        const statusCounts: Record<string, number> = {
+            PENDING: 0,
+            PAID: 0,
+            SHIPPED: 0,
+            DONE: 0,
+            CANCELLED: 0
+        };
+
+        transactions.forEach((t: any) => {
+            const tDate = new Date(t.timestamp || t.created_at);
+            const status = t.status || 'PENDING';
+
+            // Global Status Counts
+            if (statusCounts[status] !== undefined) {
+                statusCounts[status]++;
+            }
+
+            if (status === 'PENDING') pendingCount++;
+            if (status === 'PAID') needProcessCount++;
+
+            // Revenue checks
+            if (revenueStatuses.includes(status)) {
+                totalRevenue += (t.total || 0);
+
+                // Daily matches
+                if (tDate.toDateString() === dailyDateKey) {
+                    dailyRevenue += (t.total || 0);
+                }
+
+                // Monthly matches
+                if (tDate.getMonth() === viewMonth && tDate.getFullYear() === viewYear) {
+                    monthRevenue += (t.total || 0);
+                }
+            }
+        });
 
         return {
-            todayRevenue: transactions
-                .filter((t: any) => new Date(t.timestamp).toDateString() === today && ['PAID', 'SHIPPED', 'DONE'].includes(t.status))
-                .reduce((acc: number, t: any) => acc + (t.total || 0), 0),
-            monthRevenue: transactions
-                .filter((t: any) => new Date(t.timestamp) >= monthStart && ['PAID', 'SHIPPED', 'DONE'].includes(t.status))
-                .reduce((acc: number, t: any) => acc + (t.total || 0), 0),
-            pendingCount: transactions.filter((t: any) => t.status === 'PENDING').length,
-            needProcessCount: transactions.filter((t: any) => t.status === 'PAID').length
+            totalRevenue,
+            dailyRevenue,
+            monthRevenue,
+            pendingCount,
+            needProcessCount,
+            statusCounts,
+
+            // View Metadata
+            viewDailyDate: dailyDateStr || now.toISOString().split('T')[0],
+            viewMonth: viewMonth,
+            viewYear: viewYear,
+            viewMonthStr: monthlyDateStr || `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`,
+
+            // Extra stats
+            products: (data.products || []).filter((p: any) => p.is_active).length,
+            orders: transactions.filter((t: any) => {
+                const date = new Date(t.timestamp || t.created_at);
+                return date.toDateString() === dailyDateKey;
+            }).length
         };
     },
 

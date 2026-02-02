@@ -121,6 +121,51 @@
 		});
 	}
 
+	function handleChat(trx: any) {
+		let message = '';
+		const customerName = trx.buyerName || trx.buyer?.name || 'Kak';
+		const itemsList = (trx.items || [])
+			.map((i: any) => `- ${i.product_name || i.name} (${i.qty}x)`)
+			.join('\n');
+		const orderId = trx.id;
+
+		// Clean phone number (remove non-digits, ensure 62 prefix)
+		let phone = trx.buyerPhone || trx.buyer?.phone || '';
+		phone = phone.replace(/\D/g, '');
+		if (phone.startsWith('0')) {
+			phone = '62' + phone.slice(1);
+		}
+
+		if (!phone) {
+			alert('Nomor HP tidak valid');
+			return;
+		}
+
+		switch (trx.status) {
+			case 'PENDING':
+				message = `Halo Kak ${customerName}, terima kasih sudah memesan di Arimbi Store! 👋\n\nPesanan kakak:\n${itemsList}\n\nStatusnya *PENDING* nih. Mohon segera diselesaikan ya agar bisa kami proses secepatnya. 😊\n\nNo Order: ${orderId}`;
+				break;
+			case 'PAID':
+				message = `Halo Kak ${customerName}! Terima kasih pembayarannya sudah kami terima. ✅\n\nPesanan kakak:\n${itemsList}\n\nSedang kami proses packing ya. Ditunggu update selanjutnya! 📦\n\nNo Order: ${orderId}`;
+				break;
+			case 'SHIPPED':
+				const resi = trx.resi || '-';
+				message = `Halo Kak ${customerName}, paket kakak sudah meluncur! 🚚💨\n\nPesanan:\n${itemsList}\n\nNo Resi: ${resi}\n\nBisa dicek berkala ya. Semoga selamat sampai tujuan! ✨\n\nNo Order: ${orderId}`;
+				break;
+			case 'DONE':
+				message = `Halo Kak ${customerName}, status pesanan kakak sudah *SELESAI*. 🎉\n\nTerima kasih banyak sudah belanja di Arimbi Store. Semoga suka sama produknya ya! Ditunggu orderan selanjutnya. 🥰\n\nNo Order: ${orderId}`;
+				break;
+			case 'CANCELLED':
+				message = `Halo Kak ${customerName}, mohon maaf pesanan dengan ID ${orderId} telah dibatalkan. 🙏\n\nJika ada pertanyaan, silakan hubungi kami kembali ya.`;
+				break;
+			default:
+				message = `Halo Kak ${customerName}, ada update mengenai pesanan kakak dengan ID ${orderId}.`;
+		}
+
+		const encodedMsg = encodeURIComponent(message);
+		window.open(`https://wa.me/${phone}?text=${encodedMsg}`, '_blank');
+	}
+
 	function handleDelete(trx: any) {
 		if (confirm(`Yakin ingin menghapus transaksi #${trx.id}?`)) {
 			const formData = new FormData();
@@ -241,8 +286,10 @@
 								title="Print"
 								class="btn-icon-action btn-print">🖨️</button
 							>
-							<button onclick={() => onChat(trx)} title="Chat" class="btn-icon-action btn-whatsapp"
-								>💬</button
+							<button
+								onclick={() => handleChat(trx)}
+								title="Chat"
+								class="btn-icon-action btn-whatsapp">💬</button
 							>
 							<button
 								onclick={() => handleDelete(trx)}
@@ -279,10 +326,14 @@
 		border: 1px solid var(--border-color, #e2e8f0);
 		border-radius: 1rem;
 		overflow: hidden;
+		overflow-x: auto; /* Enable horizontal scroll */
 		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 	}
+
+	/* Ensure table has minimum width to trigger scroll on small screens */
 	.data-table {
 		width: 100%;
+		min-width: 800px;
 		border-collapse: collapse;
 		font-family: 'Inter', sans-serif;
 	}

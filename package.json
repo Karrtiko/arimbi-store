@@ -9,7 +9,8 @@
 		"preview": "vite preview",
 		"prepare": "panda codegen",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"migrate": "node scripts/migrate-json-to-sqlite.js"
 	},
 	"devDependencies": {
 		"@pandacss/dev": "^1.8.1",
@@ -17,6 +18,7 @@
 		"@sveltejs/kit": "^2.50.1",
 		"@sveltejs/vite-plugin-svelte": "^6.2.4",
 		"@types/bcryptjs": "^2.4.6",
+		"@types/better-sqlite3": "^7.6.13",
 		"@types/canvas-confetti": "^1.9.0",
 		"@types/node": "^25.0.10",
 		"svelte": "^5.48.2",
@@ -28,6 +30,7 @@
 		"@fontsource/inter": "^5.2.8",
 		"@fontsource/plus-jakarta-sans": "^5.2.8",
 		"bcryptjs": "^3.0.3",
+		"better-sqlite3": "^12.6.2",
 		"canvas-confetti": "^1.9.4",
 		"jspdf": "^4.0.0",
 		"jspdf-autotable": "^5.0.7",

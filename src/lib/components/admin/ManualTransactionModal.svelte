@@ -8,9 +8,207 @@
 	// State
 	let isOpen = $state(false);
 	let isSubmitting = $state(false);
+	let whatsappText = $state(''); // New: WA Text Input
 	let manualItems = $state([
-		{ product_id: '', qty: 1, product_name: '', price: 0, type: 'product' }
+		{ product_id: '', qty: 1, product_name: '', price: 0, type: 'product', detected_name: '' }
 	]);
+
+	function parseWhatsapp() {
+		if (!whatsappText) return;
+
+		const text = whatsappText.replace(/\r\n/g, '\n');
+
+		// 1. ITEMS PARSING
+		// Strategy: Look for lines starting with "-"
+		const itemLines = text.split('\n').filter((l) => l.trim().startsWith('-'));
+		const parsedItemsList: any[] = [];
+
+		const searchList = allSellables.map((item) => ({
+			...item,
+			searchName: item.label.toLowerCase().replace(/[^a-z0-9]/g, '')
+		}));
+
+		const findProduct = (rawName: string) => {
+			const normalizedRaw = rawName.toLowerCase().replace(/[^a-z0-9]/g, '');
+			if (!normalizedRaw) return null;
+			const exact = searchList.find((p) => p.searchName === normalizedRaw);
+			if (exact) return exact;
+			return searchList.find(
+				(p) => p.searchName.includes(normalizedRaw) || normalizedRaw.includes(p.searchName)
+			);
+		};
+
+		itemLines.forEach((line) => {
+			let cleanLine = line.replace(/^-/, '').trim();
+			let qty = 1;
+
+			// Checkout format: "- Item Name (2x) = Rp 10.000"
+			const qtyMatch = cleanLine.match(/\((\d+)x\)/i);
+			if (qtyMatch) {
+				qty = parseInt(qtyMatch[1]);
+				cleanLine = cleanLine.replace(qtyMatch[0], '').trim();
+			}
+
+			// Remove price part " = Rp ..."
+			cleanLine = cleanLine.replace(/=\s*(?:Rp\.?|IDR)?\s*[\d,.]+/i, '').trim();
+
+			const productName = cleanLine.trim();
+			const matched = findProduct(productName);
+
+			if (matched) {
+				parsedItemsList.push({
+					product_id: matched.value,
+					qty: qty,
+					product_name: matched.label,
+					price: matched.price,
+					type: matched.type
+				});
+			} else {
+				parsedItemsList.push({
+					product_id: '',
+					qty: qty,
+					product_name: '',
+					detected_name: productName,
+					price: 0,
+					type: 'product'
+				});
+			}
+		});
+
+		// 2. METADATA PARSING (Structured)
+		// We have distinct sections based on headers.
+		// Checkout Format:
+		// Pesanan Atas nama: ...
+		// Nomor Telp: ...
+		//
+		// Pengiriman ke:
+		// Nama Penerima: ...
+		// Nomor Telp: ...
+		// Alamat: ...
+		// Catatan: ...
+
+		// Helper: extract value but stop at newlines OR common phone patterns if accidentally on same line
+		const getValue = (key: string, source: string) => {
+			// Look for key, capture until newline or end
+			const regex = new RegExp(`${key}:\\s*(.*?)(?=\\n|$)`, 'i');
+			const match = source.match(regex);
+			if (!match) return '';
+
+			let val = match[1].trim();
+
+			// FIX: Check if the value itself contains a phone number-like pattern and strip it
+			// Often "Name: Budi 08123456" happens if format is loose
+			// checkout format puts them on separate lines, but header reuse might cause this.
+			// Or "Pesanan Atas nama: Budi Nomor Telp: ..." if on same line
+
+			// Stop at "Nomor Telp" or "WA" if it leaked into the line
+			const nextKeyIndex = val.search(/(?:Nomor Telp|Nomor HP|WA|HP):/i);
+			if (nextKeyIndex !== -1) {
+				val = val.substring(0, nextKeyIndex).trim();
+			}
+
+			return val;
+		};
+
+		// Split text into "Buyer Section" and "Shipping Section" if possible
+		// "Pengiriman ke:" acts as a divider.
+		const parts = text.split(/Pengiriman ke:/i);
+		const buyerSection = parts[0] || '';
+		const shippingSection = parts[1] || '';
+
+		// Buyer Data (from top section)
+		const cleanBuyerName =
+			getValue('Pesanan Atas nama', buyerSection) || getValue('Nama', buyerSection);
+		// Phone in buyer section
+		const buyerPhoneMatch = buyerSection.match(
+			/(?:Nomor Telp|Nomor HP|WA):\s*((?:\+?62|0)[\d\-\s]+)/i
+		);
+		const cleanBuyerPhone = buyerPhoneMatch ? buyerPhoneMatch[1].replace(/\D/g, '') : '';
+
+		// Receiver Data (from shipping section)
+		const cleanReceiverName = getValue('Nama Penerima', shippingSection);
+		// Phone in shipping section
+		const receiverPhoneMatch = shippingSection.match(
+			/(?:Nomor Telp|Nomor HP|WA):\s*((?:\+?62|0)[\d\-\s]+)/i
+		);
+		const cleanReceiverPhone = receiverPhoneMatch ? receiverPhoneMatch[1].replace(/\D/g, '') : '';
+
+		// Address & Notes (from shipping section)
+		// Alamat might be multi-line.
+		const addressMatch = shippingSection.match(
+			/Alamat:\s*([\s\S]*?)(?=\n\s*(?:Catatan|Note|Terima Kasih)|$)/i
+		);
+		const cleanAddress = addressMatch ? addressMatch[1].trim() : '';
+
+		const notesMatch = shippingSection.match(
+			/(?:Catatan|Note):\s*([\s\S]*?)(?=\n\s*Terima Kasih|$)/i
+		);
+		const cleanNotes = notesMatch ? notesMatch[1].trim() : '';
+
+		// UPDATE STATE
+		if (cleanBuyerName) manualFormData.buyerName = cleanBuyerName;
+		if (cleanBuyerPhone) manualFormData.buyerPhone = cleanBuyerPhone;
+
+		if (cleanReceiverName) {
+			manualFormData.receiverName = cleanReceiverName;
+			// Smart IsGift: Only if receiver name differs significantly from buyer name
+			// Normalize for comparison
+			const b = cleanBuyerName.toLowerCase().replace(/\s/g, '');
+			const r = cleanReceiverName.toLowerCase().replace(/\s/g, '');
+			if (b !== r && b && r) {
+				manualFormData.isGift = true;
+			} else {
+				manualFormData.isGift = false;
+				// If not gift, we might still want to keep the phone number if it was parsed,
+				// but form usually hides receiver fields if !isGift.
+				// However, our backend might expect receiver fields to be empty if not gift.
+				// CheckoutModal sends "finalReceiverName" which matches buyerName if not gift.
+				// For admin manual input, if it's the same person, we usually uncheck "Gift".
+			}
+		}
+
+		if (cleanReceiverPhone && manualFormData.isGift) {
+			manualFormData.receiverPhone = cleanReceiverPhone;
+		}
+
+		if (cleanAddress) manualFormData.address = cleanAddress;
+		if (cleanNotes && cleanNotes !== '-') manualFormData.notes = cleanNotes;
+
+		if (parsedItemsList.length > 0) {
+			manualItems = parsedItemsList;
+		}
+
+		alert(`Parser Selesai!\nDitemukan: ${parsedItemsList.length} item(s).`);
+	}
+
+	function requestSubmit() {
+		// Validate
+		if (!manualFormData.buyerName) {
+			alert('Nama Pembeli wajib diisi!');
+			return;
+		}
+
+		if (manualFormData.total <= 0) {
+			alert('Total transaksi Rp 0. Mohon tambahkan produk atau pastikan harga produk valid.');
+			return;
+		}
+
+		// Open Confirmation
+		showConfirmation = true;
+	}
+
+	function confirmAndSubmit() {
+		showConfirmation = false;
+		// Trigger the real form submit
+		// Since we are inside a form, we need to trigger it programmatically or use a hidden button.
+		// SvelteKit's enhance works on the <form> element.
+		// We can assign a ref to the submit button or simply call the form submit?
+		// Actually, simpler: The "Simpan" button was type="submit".
+		// We verified it with requestSubmit, now valid.
+		// We need to trigger the actual submit event.
+		// Let's use a hidden button.
+		document.getElementById('hidden-submit-btn')?.click();
+	}
 
 	// Derived Items for Dropdown
 	const allSellables = $derived([
@@ -179,6 +377,20 @@
 						<div class="column-left">
 							<div class="form-section">
 								<h4 class="section-title">Identitas Pembeli</h4>
+
+								<!-- New: WA Parser -->
+								<div class="wa-parser-box">
+									<textarea
+										placeholder="Paste Pesanan WhatsApp di sini (Otomatis deteksi Nama/HP/Alamat)..."
+										bind:value={whatsappText}
+										rows="3"
+										class="wa-input"
+									></textarea>
+									<button type="button" class="btn-parse" onclick={parseWhatsapp}>
+										⚡ Auto Isi dari WA
+									</button>
+								</div>
+
 								<div class="form-group">
 									<label for="buyerName">Nama Lengkap *</label>
 									<input
@@ -329,7 +541,7 @@
 										onclick={() =>
 											(manualItems = [
 												...manualItems,
-												{ product_id: '', qty: 1, product_name: '', price: 0 }
+												{ product_id: '', qty: 1, product_name: '', price: 0, detected_name: '' }
 											])}
 									>
 										+ Tambah Produk Lain
@@ -665,5 +877,46 @@
 	}
 	.btn-submit:hover {
 		background: #4338ca;
+	}
+	/* WA Parser */
+	.wa-parser-box {
+		background: #f0fdf4;
+		border: 1px solid #bbf7d0;
+		padding: 1rem;
+		border-radius: 0.75rem;
+		margin-bottom: 1.5rem;
+	}
+	.wa-input {
+		width: 100%;
+		border: 1px solid #86efac;
+		border-radius: 0.5rem;
+		padding: 0.5rem;
+		font-size: 0.85rem;
+		margin-bottom: 0.5rem;
+		outline: none;
+	}
+	.detected-item-hint {
+		font-size: 0.8rem;
+		color: #d97706;
+		background: #fffbeb;
+		padding: 0.25rem 0.5rem;
+		border-radius: 0.375rem;
+		margin-top: 0.25rem;
+		border: 1px dashed #fcd34d;
+	}
+
+	.btn-parse {
+		width: 100%;
+		background: #16a34a;
+		color: white;
+		border: none;
+		padding: 0.5rem;
+		border-radius: 0.5rem;
+		font-weight: 600;
+		font-size: 0.85rem;
+		cursor: pointer;
+	}
+	.btn-parse:hover {
+		background: #15803d;
 	}
 </style>

@@ -41,7 +41,7 @@
 					>
 					{$page.data.settings?.admin_whatsapp || '+62 812-3456-7890'}
 				</p>
-				<p>
+				<!-- <p>
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						width="18"
@@ -57,7 +57,7 @@
 						/></svg
 					>
 					hello@arimbistore.com
-				</p>
+				</p> -->
 			</div>
 		</div>
 	</div>

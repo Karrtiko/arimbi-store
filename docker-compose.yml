@@ -1,22 +1,31 @@
 services:
-  web:
+  arimbi-store:
     build: .
-    restart: always
+    container_name: arimbi-store
+    restart: unless-stopped
     ports:
       - "3000:3000"
     volumes:
-      # Persist the JSON database
-      - ./src/lib/server/data/db.json:/app/src/lib/server/data/db.json
+      # Persist SQLite database
+      - ./data:/app/data
       # Persist uploaded images
-      - ./static/uploads:/app/build/client/uploads
-      # Note: SvelteKit node adapter serves static files from build/client
-      # We mount to build/client/uploads so standard file serving works.
-      # AND we might also need to mount to static/uploads if the app writes there?
-      # Actually, the Node adapter copies 'static' to 'build/client'. 
-      # WRITES should probably go to a persistent volume, and reads should verify.
-      # For simplicity in this file-based setup:
-      # We map host ./static/uploads to the container location.
-      
+      - ./uploads:/app/uploads
+      # Optional: Custom static assets (watermarks, etc.)
+      - ./static:/app/static
     environment:
-      - ORIGIN=http://localhost:3000
       - NODE_ENV=production
+      - ORIGIN=${ORIGIN:-http://localhost:3000}
+      - PORT=3000
+      - SESSION_SECRET=${SESSION_SECRET}
+      - DB_PATH=/app/data/arimbi.db
+      - UPLOAD_DIR=/app/uploads
+      - WATERMARK_PATH=/app/static/watermark.png
+      - ADMIN_WHATSAPP=${ADMIN_WHATSAPP}
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

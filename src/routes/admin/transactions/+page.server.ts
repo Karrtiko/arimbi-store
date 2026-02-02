@@ -11,9 +11,31 @@ export const load: PageServerLoad = async ({ url }) => {
     // Fetch Transactions
     const { transactions, pagination } = db.getTransactions(page, limit, { search, sortBy, sortDir });
 
-    // Fetch Stats (We can filter/calculate specifically for this page if needed)
+    // Fetch Stats
     // The DB adapter's getTransactionStats returns { todayRevenue, monthRevenue, pendingCount, ... }
-    const stats = db.getTransactionStats();
+    const monthParam = url.searchParams.get('month');
+    const yearParam = url.searchParams.get('year');
+    const statusParam = url.searchParams.get('status');
+    const searchParam = url.searchParams.get('search');
+
+    const month = monthParam ? parseInt(monthParam) : undefined;
+    const year = yearParam ? parseInt(yearParam) : undefined;
+
+    // Convert to "YYYY-MM" format for the new getTransactionStats signature
+    let monthlyDateStr = undefined;
+    if (year && month !== undefined) {
+        // Ensure month is 1-indexed for the string format "YYYY-MM"
+        // monthParam usually comes as 0-indexed from my previous logic? 
+        // Let's check the previous admin page logic. 
+        // In previous admin/+page.svelte: viewMonth was 0-indexed.
+        // But the URL param generator used `stats.viewMonth`.
+        // Let's assume monthParam from URL is 0-indexed based on how JS Date works usually in this app.
+        // Actually, let's just construct it carefully.
+        monthlyDateStr = `${year}-${String(month + 1).padStart(2, '0')}`;
+    }
+
+    // Call getTransactionStats with (dailyDateStr, monthlyDateStr)
+    const stats = db.getTransactionStats(undefined, monthlyDateStr);
 
     // Get Active Products and Bundles for manual form
     const products = db.getActiveProducts();
